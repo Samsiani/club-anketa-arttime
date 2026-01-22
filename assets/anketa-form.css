@@ -1,0 +1,207 @@
+/* Registration form CSS - Version: 1.4.4 */
+:root {
+  --anketa-word-spacing: 0.15em;
+  --anketa-label-width: 260px;
+  --anketa-gap: 16px;
+  --anketa-font-stack: "Noto Sans Georgian","DejaVu Sans","Segoe UI",Roboto,Arial,sans-serif;
+
+  --phone-prefix-bg: #f2f2f2;
+  --phone-border: #999;
+  --phone-focus: #222;
+}
+
+.club-anketa-form-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  font-family: var(--anketa-font-stack);
+  color: #000;
+  letter-spacing: normal;
+  word-spacing: var(--anketa-word-spacing);
+  line-height: 1.42;
+}
+
+.club-anketa-form-wrap *:not(.boxes span) {
+  word-spacing: var(--anketa-word-spacing);
+  letter-spacing: normal;
+}
+
+.club-anketa-errors {
+  background: #ffe6e6;
+  border: 1px solid #ffb3b3;
+  color: #8b0000;
+  padding: 12px;
+  margin: 0 0 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  word-spacing: var(--anketa-word-spacing);
+}
+
+.club-anketa-form {
+  display: block;
+}
+
+.club-anketa-form .row {
+  display: grid;
+  grid-template-columns: var(--anketa-label-width) 1fr;
+  align-items: center;
+  gap: 12px var(--anketa-gap);
+  margin-bottom: 14px;
+}
+
+@media (max-width: 640px) {
+  .club-anketa-form .row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+.club-anketa-form .label {
+  font-weight: 600;
+  white-space: normal !important;
+  letter-spacing: 0 !important;
+  word-spacing: var(--anketa-word-spacing) !important;
+  font-size: 15px;
+}
+
+.club-anketa-form .field input[type="text"],
+.club-anketa-form .field input[type="email"],
+.club-anketa-form .field input[type="date"],
+.club-anketa-form .field input[type="tel"] {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  font: 15px/1.4 var(--anketa-font-stack);
+  letter-spacing: normal;
+  word-spacing: var(--anketa-word-spacing);
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.club-anketa-form .field input:focus {
+  outline: none;
+  border-color: var(--phone-focus);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+}
+
+/* Ensure native date pickers are visible across themes */
+.club-anketa-form input[type="date"] {
+  -webkit-appearance: auto;
+  appearance: auto;
+  background-color: #fff;
+}
+.club-anketa-form input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+}
+
+/* Phone split UI: +995 fixed (15%) + 9-digit local input (85%) */
+.phone-group {
+  display: inline-flex;
+  align-items: stretch;
+  width: 100%;
+}
+
+.phone-prefix {
+  flex: 0 0 15%;
+  max-width: 15%;
+  min-width: 70px;
+  text-align: center;
+  background: var(--phone-prefix-bg);
+  color: #000;
+  border: 1px solid #999;
+  border-right: none;
+  border-radius: 4px 0 0 4px;
+  font: 15px/1.4 var(--anketa-font-stack);
+  pointer-events: none;
+  user-select: none;
+}
+
+.phone-local {
+  flex: 1 1 85%;
+  min-width: 0;
+  border: 1px solid #999;
+  border-left: none;
+  border-radius: 0 4px 4px 0;
+  padding: 11px 12px;
+  font: 15px/1.4 var(--anketa-font-stack);
+}
+.phone-local:focus {
+  border-color: var(--phone-focus);
+  box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+}
+
+.help-text {
+  display: block;
+  color: #555;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/* Rules block */
+.club-anketa-form .rules-wrap {
+  border: 1px solid #bbb;
+  padding: 12px 14px;
+  margin: 24px 0;
+  border-radius: 4px;
+  background: #fafafa;
+  word-spacing: var(--anketa-word-spacing);
+}
+
+.club-anketa-form .rules-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 15px;
+}
+
+.club-anketa-form .rules-text ul,
+.club-anketa-form .rules-text ol {
+  margin: 8px 0 8px 20px;
+  padding: 0;
+  word-spacing: var(--anketa-word-spacing);
+}
+
+.club-anketa-form .rules-text li {
+  margin-bottom: 4px;
+}
+
+/* Submit */
+.club-anketa-form .submit-row {
+  text-align: right;
+  margin-top: 22px;
+}
+
+.club-anketa-form .submit-btn {
+  padding: 11px 22px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: .5px;
+  word-spacing: normal;
+}
+
+.club-anketa-form .submit-btn:hover {
+  background: #000;
+}
+
+/* Honeypot hidden */
+.club-anketa-hp {
+  position: absolute !important;
+  left: -9999px !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Accessibility focus for labels */
+.club-anketa-form .label:focus {
+  outline: 2px dashed #444;
+  outline-offset: 2px;
+}
