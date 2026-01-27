@@ -1,13 +1,19 @@
 /**
  * SMS OTP Verification Script
  * Club Anketa Registration for WooCommerce
- * Version: 2.0.0
+ * Version: 2.1.0
  * 
  * Implements inline phone verification with:
- * - Verify button next to phone field
+ * - Verify button next to phone field (inline, same row)
+ * - Modal popup for OTP entry
  * - Real-time verification status tracking
- * - Reset on phone number change
+ * - Reset on phone number change (edit detection)
  * - Form submission blocking until verified
+ * 
+ * Works on three locations:
+ * 1. Registration Shortcode Form ([club_anketa_form])
+ * 2. WooCommerce Checkout Page (billing_phone field)
+ * 3. My Account - Edit Address/Details Page
  */
 (function($) {
     'use strict';
@@ -28,6 +34,7 @@
     var countdownInterval = null;
     var resendCountdown = 60;
     var pendingFormSubmit = false;
+    var currentPhoneField = null; // Track the phone field that triggered verification
 
     /**
      * Initialize the SMS verification system
@@ -47,10 +54,18 @@
 
         // Update submit button states
         updateSubmitButtonStates();
+
+        // Re-initialize on WooCommerce AJAX events (for checkout updates)
+        $(document.body).on('updated_checkout', function() {
+            injectVerifyButtonForWooCommerce();
+            initializePhoneFields();
+            updateSubmitButtonStates();
+        });
     }
 
     /**
      * Inject verify button for WooCommerce billing phone field
+     * This handles both checkout and account pages
      */
     function injectVerifyButtonForWooCommerce() {
         // Check for WooCommerce billing phone field without verify button
@@ -200,10 +215,11 @@
 
     /**
      * Update submit button enabled/disabled states based on verification
+     * Applies to: Registration form, Checkout, My Account Edit Address/Details
      */
     function updateSubmitButtonStates() {
-        // Find all forms with phone verification
-        $('.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm').each(function() {
+        // Find all forms with phone verification (including edit-address form)
+        $('.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address').each(function() {
             var $form = $(this);
             var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone').first();
             var $submitBtn = $form.find('.submit-btn, button[type="submit"], input[type="submit"]').not('.phone-verify-btn, .otp-verify-btn, .otp-resend-btn');
@@ -218,7 +234,9 @@
 
             // Check if phone field is required (registration form always requires verification)
             var isRegistrationForm = $form.hasClass('club-anketa-form');
-            var requiresVerification = isRegistrationForm || $form.find('.phone-verify-group').length > 0;
+            var isCheckout = $form.hasClass('checkout');
+            var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
+            var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || $form.find('.phone-verify-group').length > 0;
 
             if (requiresVerification && phoneValid && !phoneVerified) {
                 // Phone is filled but not verified - disable submit
@@ -240,16 +258,20 @@
      * Bind all event handlers
      */
     function bindEvents() {
-        // Phone input change - real-time monitoring
+        // Phone input change - real-time monitoring (edit detection)
         $(document).on('input change', '.phone-local, #billing_phone, #anketa_phone_local', function() {
             var $input = $(this);
             var currentPhone = $input.val();
+            // Store reference to current field for later use
+            currentPhoneField = $input;
             updatePhoneFieldState($input, currentPhone);
         });
 
-        // Verify button click
+        // Verify button click - Opens modal immediately
         $(document).on('click', '.phone-verify-btn', function(e) {
             e.preventDefault();
+            e.stopPropagation();
+            
             var $btn = $(this);
             var $container = $btn.closest('.phone-verify-group, .phone-group');
             var $input = $container.find('.phone-local, #billing_phone, #anketa_phone_local, input[type="tel"]').first();
@@ -257,26 +279,42 @@
             var phone = normalizePhone($input.val());
             
             if (!phone || phone.length !== 9) {
-                alert(i18n.phoneRequired);
+                showModalError(i18n.phoneRequired || 'Phone number must be 9 digits');
                 $input.focus();
                 return;
             }
 
+            // Store reference to the phone field that triggered this
+            currentPhoneField = $input;
+
             // Disable button and show loading
             $btn.prop('disabled', true).addClass('loading');
+
+            // Open modal first, then send OTP (better UX)
+            openModal(phone);
+            showMessage(i18n.sendingOtp || 'Sending code...', 'info');
 
             // Send OTP
             sendOtp(phone, function() {
                 $btn.prop('disabled', false).removeClass('loading');
-                openModal(phone);
-            }, function() {
+                showMessage(i18n.enterCode || 'Enter the 6-digit code', 'success');
+                startResendCountdown(60);
+            }, function(errorMessage) {
                 $btn.prop('disabled', false).removeClass('loading');
+                // Show error in modal, don't close it
+                showMessage(errorMessage || i18n.error, 'error');
             });
         });
 
-        // Form submission interception
-        $(document).on('submit', '.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm', function(e) {
+        // Form submission interception - block if verification required
+        $(document).on('submit', '.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address', function(e) {
             return handleFormSubmit(e, $(this));
+        });
+
+        // WooCommerce AJAX checkout interception
+        $(document.body).on('checkout_error', function() {
+            // Re-check verification status after WooCommerce validation errors
+            updateSubmitButtonStates();
         });
 
         // Close modal
@@ -308,6 +346,7 @@
 
     /**
      * Handle form submission
+     * Blocks submission if phone is filled but not verified
      */
     function handleFormSubmit(e, $form) {
         var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone').first();
@@ -320,7 +359,9 @@
         
         // Check if phone is filled but not verified
         var isRegistrationForm = $form.hasClass('club-anketa-form');
-        var requiresVerification = isRegistrationForm || $form.find('.phone-verify-group').length > 0;
+        var isCheckout = $form.hasClass('checkout');
+        var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
+        var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || $form.find('.phone-verify-group').length > 0;
 
         if (requiresVerification && currentPhone.length === 9 && !isPhoneVerified(currentPhone)) {
             e.preventDefault();
@@ -335,7 +376,8 @@
                 }, 2000);
             }
 
-            alert(i18n.verificationRequired || 'Please verify your phone number before submitting.');
+            // Show a more descriptive message instead of alert
+            showModalError(i18n.verificationRequired || 'Please verify your phone number before submitting.');
             return false;
         }
 
@@ -346,11 +388,23 @@
     }
 
     /**
+     * Show modal error - display error in modal or create alert modal
+     */
+    function showModalError(message) {
+        var $modal = $('#club-anketa-otp-modal');
+        if ($modal.is(':visible')) {
+            showMessage(message, 'error');
+        } else {
+            // Create a temporary alert for errors outside modal
+            alert(message);
+        }
+    }
+
+    /**
      * Send OTP via AJAX
+     * Modal should already be open when this is called
      */
     function sendOtp(phone, successCallback, errorCallback) {
-        showMessage(i18n.sendingOtp, 'info');
-        
         $.ajax({
             url: ajaxUrl,
             type: 'POST',
@@ -361,22 +415,23 @@
             },
             success: function(response) {
                 if (response.success) {
-                    showMessage(i18n.enterCode, 'success');
-                    startResendCountdown(response.data.expires || 60);
                     if (typeof successCallback === 'function') {
                         successCallback();
                     }
                 } else {
-                    showMessage(response.data.message || i18n.error, 'error');
+                    // Pass the specific error message to the callback
+                    var errorMsg = response.data && response.data.message ? response.data.message : (i18n.error || 'Error');
+                    showMessage(errorMsg, 'error');
                     if (typeof errorCallback === 'function') {
-                        errorCallback();
+                        errorCallback(errorMsg);
                     }
                 }
             },
-            error: function() {
-                showMessage(i18n.error, 'error');
+            error: function(xhr, status, error) {
+                var errorMsg = i18n.error || 'Network error. Please try again.';
+                showMessage(errorMsg, 'error');
                 if (typeof errorCallback === 'function') {
-                    errorCallback();
+                    errorCallback(errorMsg);
                 }
             }
         });
@@ -390,12 +445,12 @@
         var phone = $('.otp-phone-display').data('phone');
 
         if (code.length !== 6) {
-            showMessage(i18n.enterCode, 'error');
+            showMessage(i18n.enterCode || 'Please enter the 6-digit code', 'error');
             return;
         }
 
         var $btn = $('.otp-verify-btn');
-        $btn.prop('disabled', true).text(i18n.verifying);
+        $btn.prop('disabled', true).text(i18n.verifying || 'Verifying...');
 
         $.ajax({
             url: ajaxUrl,
@@ -407,7 +462,7 @@
                 code: code
             },
             success: function(response) {
-                $btn.prop('disabled', false).text(i18n.verify);
+                $btn.prop('disabled', false).text(i18n.verify || 'Verify');
 
                 if (response.success) {
                     // Update session verified phone
@@ -420,7 +475,7 @@
                     }
 
                     updateVerificationToken(verificationToken);
-                    showMessage(i18n.verified, 'success');
+                    showMessage(i18n.verified || 'Verified!', 'success');
                     
                     // Update all phone field states
                     $('.phone-local, #billing_phone, #anketa_phone_local').each(function() {
@@ -430,15 +485,21 @@
                     // Close modal after a short delay
                     setTimeout(function() {
                         closeModal();
+                        // Update submit button states after verification
+                        updateSubmitButtonStates();
                     }, 800);
                 } else {
-                    showMessage(response.data.message || i18n.invalidCode, 'error');
+                    // Show the SPECIFIC error message returned by the backend
+                    var errorMsg = (response.data && response.data.message) 
+                        ? response.data.message 
+                        : (i18n.invalidCode || 'Invalid code');
+                    showMessage(errorMsg, 'error');
                     clearOtpInputs();
                 }
             },
-            error: function() {
-                $btn.prop('disabled', false).text(i18n.verify);
-                showMessage(i18n.error, 'error');
+            error: function(xhr, status, error) {
+                $btn.prop('disabled', false).text(i18n.verify || 'Verify');
+                showMessage(i18n.error || 'Network error. Please try again.', 'error');
             }
         });
     }
@@ -449,8 +510,8 @@
     function updateVerificationToken(token) {
         $('.otp-verification-token').val(token);
         
-        // Also add to any form that needs it
-        $('form.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm').each(function() {
+        // Also add to any form that needs it (including edit-address form)
+        $('form.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address').each(function() {
             var $form = $(this);
             if (!$form.find('.otp-verification-token').length) {
                 $form.append('<input type="hidden" name="otp_verification_token" value="' + token + '" class="otp-verification-token" />');
