@@ -82,9 +82,16 @@ class Club_Anketa_Registration {
             true
         );
 
+        // Get verified phone number for logged-in users
+        $verified_phone = '';
+        if (is_user_logged_in()) {
+            $verified_phone = $this->get_user_verified_phone(get_current_user_id());
+        }
+
         wp_localize_script('club-anketa-sms-verification', 'clubAnketaSms', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('club_anketa_sms_nonce'),
+            'verifiedPhone' => $verified_phone,
             'i18n'    => [
                 'sendingOtp'      => __('იგზავნება...', 'club-anketa'),
                 'enterCode'       => __('შეიყვანეთ 6-ნიშნა კოდი', 'club-anketa'),
@@ -101,8 +108,28 @@ class Club_Anketa_Registration {
                 'rateLimitError'  => __('ზედმეტად ბევრი მცდელობა. გთხოვთ სცადეთ მოგვიანებით.', 'club-anketa'),
                 'modalTitle'      => __('ტელეფონის ვერიფიკაცია', 'club-anketa'),
                 'modalSubtitle'   => __('SMS კოდი გამოგზავნილია ნომერზე:', 'club-anketa'),
+                'verifyBtn'       => __('Verify', 'club-anketa'),
+                'verificationRequired' => __('ტელეფონის ვერიფიკაცია სავალდებულოა', 'club-anketa'),
             ]
         ]);
+    }
+
+    /**
+     * Get user's verified phone number (9-digit local format)
+     */
+    private function get_user_verified_phone($user_id) {
+        $verified_phone = get_user_meta($user_id, '_verified_phone_number', true);
+        if ($verified_phone) {
+            // Ensure it's in 9-digit local format
+            $verified_phone = preg_replace('/\D+/', '', $verified_phone);
+            if (strlen($verified_phone) > 9 && strpos($verified_phone, '995') === 0) {
+                $verified_phone = substr($verified_phone, 3);
+            }
+            if (strlen($verified_phone) > 9) {
+                $verified_phone = substr($verified_phone, -9);
+            }
+        }
+        return $verified_phone ?: '';
     }
 
     /**
@@ -319,9 +346,16 @@ class Club_Anketa_Registration {
         $verify_key = 'otp_verified_' . $phone_digits;
         set_transient($verify_key, $verify_token, self::OTP_EXPIRY_SECONDS);
 
+        // If user is logged in, update their verified phone number
+        if (is_user_logged_in()) {
+            $user_id = get_current_user_id();
+            update_user_meta($user_id, '_verified_phone_number', $phone_digits);
+        }
+
         wp_send_json_success([
-            'message' => __('Phone verified successfully.', 'club-anketa'),
-            'token'   => $verify_token,
+            'message'       => __('Phone verified successfully.', 'club-anketa'),
+            'token'         => $verify_token,
+            'verifiedPhone' => $phone_digits,
         ]);
     }
 
@@ -390,23 +424,33 @@ class Club_Anketa_Registration {
         $new_consent = sanitize_text_field(wp_unslash($_POST['anketa_sms_consent']));
         $old_consent = get_user_meta($user_id, '_sms_consent', true);
 
+        // Get current phone number
+        $phone = get_user_meta($user_id, 'billing_phone', true);
+        $phone_digits = preg_replace('/\D+/', '', $phone);
+        
+        // Extract 9-digit local number
+        if (preg_match('/995(\d{9})$/', $phone_digits, $m)) {
+            $phone_digits = $m[1];
+        } elseif (strlen($phone_digits) > 9) {
+            $phone_digits = substr($phone_digits, -9);
+        }
+
         // If changing from "no" to "yes", require OTP verification
         if ($new_consent === 'yes' && $old_consent !== 'yes') {
-            $phone = get_user_meta($user_id, 'billing_phone', true);
-            $phone_digits = preg_replace('/\D+/', '', $phone);
-            
-            // Extract 9-digit local number
-            if (preg_match('/995(\d{9})$/', $phone_digits, $m)) {
-                $phone_digits = $m[1];
-            } elseif (strlen($phone_digits) > 9) {
-                $phone_digits = substr($phone_digits, -9);
-            }
-            
             if (!$this->is_phone_verified($phone_digits)) {
                 // Don't update, verification required
-                wc_add_notice(__('Phone verification required to enable SMS notifications.', 'club-anketa'), 'error');
+                if (function_exists('wc_add_notice')) {
+                    wc_add_notice(__('Phone verification required to enable SMS notifications.', 'club-anketa'), 'error');
+                }
                 return;
             }
+            // Update the verified phone number
+            update_user_meta($user_id, '_verified_phone_number', $phone_digits);
+        }
+
+        // If consent is "no", clear the verified phone number
+        if ($new_consent === 'no') {
+            delete_user_meta($user_id, '_verified_phone_number');
         }
 
         update_user_meta($user_id, '_sms_consent', $new_consent);
@@ -589,6 +633,8 @@ class Club_Anketa_Registration {
             '_anketa_shop'                => $data['anketa_shop'],
             // SMS consent
             '_sms_consent'                => $sms_consent,
+            // Store the verified phone number
+            '_verified_phone_number'      => $sms_consent === 'yes' ? $local_digits : '',
         ];
         foreach ($meta_map as $meta_key => $meta_value) {
             if ($meta_value !== '') {
@@ -721,7 +767,7 @@ class Club_Anketa_Registration {
                 <div class="row">
                     <label class="label">ტელეფონის ნომერი *</label>
                     <div class="field">
-                        <div class="phone-group">
+                        <div class="phone-group phone-verify-group">
                             <input class="phone-prefix" type="text" value="+995" readonly aria-label="Country code +995" />
                             <input
                                 class="phone-local"
@@ -736,6 +782,14 @@ class Club_Anketa_Registration {
                                 value="<?php echo $v('anketa_phone_local'); ?>"
                                 aria-describedby="phoneHelp"
                             />
+                            <div class="phone-verify-container">
+                                <button type="button" class="phone-verify-btn" aria-label="<?php esc_attr_e('Verify phone number', 'club-anketa'); ?>">
+                                    <?php esc_html_e('Verify', 'club-anketa'); ?>
+                                </button>
+                                <span class="phone-verified-icon" style="display:none;" aria-label="<?php esc_attr_e('Phone verified', 'club-anketa'); ?>">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                </span>
+                            </div>
                         </div>
                         <small id="phoneHelp" class="help-text">9-ციფრიანი ნომერი, მაგალითად 599620303</small>
                     </div>
