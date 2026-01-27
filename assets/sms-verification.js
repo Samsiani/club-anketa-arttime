@@ -67,6 +67,14 @@
     /**
      * Inject verify button for WooCommerce and other phone fields
      * This handles checkout, registration, and account pages
+     * 
+     * Creates a clean sibling relationship with Flexbox layout:
+     * <div class="phone-verify-group">
+     *    <input class="phone-field">
+     *    <div class="phone-verify-container">
+     *        <button>Verify</button>
+     *    </div>
+     * </div>
      */
     function injectVerifyButtonForWooCommerce() {
         // Array of phone field selectors to target
@@ -85,10 +93,11 @@
                 return;
             }
 
-            // Wrap the phone input in phone-verify-group container
+            // Wrap the phone input in phone-verify-group container (Flexbox parent)
             $phoneInput.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
             
-            // Add verify container after the input
+            // Add verify container as a sibling AFTER the input (not inside)
+            // This creates the clean sibling relationship required for side-by-side Flexbox layout
             var verifyHtml = '<div class="phone-verify-container">' +
                 '<button type="button" class="phone-verify-btn" aria-label="' + i18n.verify + '">' + 
                 (i18n.verifyBtn || 'Verify') + '</button>' +

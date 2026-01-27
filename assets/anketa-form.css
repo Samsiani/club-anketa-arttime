@@ -104,8 +104,7 @@
 }
 
 .phone-prefix {
-  flex: 0 0 15%;
-  max-width: 15%;
+  flex: 0 0 auto !important;
   min-width: 70px;
   text-align: center;
   background: var(--phone-prefix-bg);
@@ -116,10 +115,11 @@
   font: 15px/1.4 var(--anketa-font-stack);
   pointer-events: none;
   user-select: none;
+  padding: 11px 12px;
 }
 
 .phone-local {
-  flex: 1 1 85%;
+  flex: 1 1 auto !important;
   min-width: 0;
   border: 1px solid #999;
   border-left: none;
@@ -132,32 +132,53 @@
   box-shadow: 0 0 0 3px rgba(0,0,0,.08);
 }
 
-/* Phone verification inline UI */
-.phone-verify-group {
-  display: inline-flex;
-  align-items: stretch;
-  width: 100%;
-  position: relative;
+/* When phone-group is combined with phone-verify-group, adjust the phone-local radius */
+.phone-group.phone-verify-group .phone-local {
+  border-radius: 0 !important;
+  border-right: 1px solid #999 !important;
 }
 
+/* Phone verification inline UI - Flexbox Side-by-Side Layout */
+.phone-verify-group {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 15px !important;
+  width: 100% !important;
+  position: relative;
+  box-sizing: border-box !important;
+}
+
+/* Ensure phone-local field takes available space and has proper styling */
 .phone-verify-group .phone-local {
-  flex: 1 1 auto;
-  border-radius: 0;
-  padding-right: 90px; /* Space for verify button */
+  flex: 1 1 auto !important;
+  width: auto !important;
+  margin: 0 !important;
+  /* Remove the right padding - button is now outside */
+}
+
+/* Standalone phone-verify-group (without phone-group prefix) */
+.phone-verify-group:not(.phone-group) .phone-local {
+  border-radius: 4px !important;
 }
 
 .phone-verify-container {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: 0 0 auto !important;
+  position: static !important;
+  transform: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   z-index: 2;
+  width: auto !important;
+  margin: 0 !important;
 }
 
 .phone-verify-btn {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0 !important;
   background: #111;
   color: #fff;
   border: none;
@@ -239,25 +260,31 @@
   border-color: #e65100;
 }
 
-/* WooCommerce phone field integration */
+/* WooCommerce phone field integration - Flexbox Side-by-Side Layout */
 .wc-phone-verify-group {
   display: flex !important;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 15px !important;
+  width: 100% !important;
   position: relative;
+  box-sizing: border-box !important;
 }
 
 .wc-phone-verify-group input[type="tel"],
 .wc-phone-verify-group input[type="text"] {
-  flex: 1;
+  flex: 1 1 auto !important;
+  width: auto !important;
   margin: 0 !important;
 }
 
 .wc-phone-verify-group .phone-verify-container {
-  flex: 0 0 auto;
-  position: static;
-  transform: none;
+  flex: 0 0 auto !important;
+  position: static !important;
+  transform: none !important;
+  width: auto !important;
+  margin: 0 !important;
 }
 
 /* Phone verification warning message */
@@ -353,49 +380,110 @@ button[type="submit"].verification-blocked {
 }
 
 /* ===== OTP Verification Modal Styles ===== */
+/* Critical: Complete CSS Isolation to prevent theme collisions */
 
 /* Body scroll lock when modal is open */
 body.club-anketa-modal-open {
-  overflow: hidden;
+  overflow: hidden !important;
 }
 
-/* Modal container */
+/* Modal container - Full viewport overlay with CSS Resets */
 .club-anketa-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 999999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  box-sizing: border-box;
+  /* Positioning: Fixed to viewport, covers entire screen */
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  
+  /* High z-index to float above all theme elements */
+  z-index: 99999999 !important;
+  
+  /* Centering: Flexbox to center the modal box */
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  
+  /* Critical CSS Resets - Prevents theme inheritance */
+  border: none !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  
+  /* Reset potential table-like styles from themes */
+  float: none !important;
+  clear: both !important;
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  
+  /* Reset text and display properties */
+  text-align: center !important;
+  vertical-align: middle !important;
+  line-height: normal !important;
+  font-size: 16px !important;
+  color: inherit !important;
+  
+  /* Prevent pointer events on the container itself */
+  pointer-events: auto !important;
 }
 
-/* Modal overlay */
+/* Hidden state for modal */
+.club-anketa-modal[style*="display: none"],
+.club-anketa-modal[style*="display:none"] {
+  display: none !important;
+}
+
+/* Modal overlay - Semi-transparent background */
 .club-anketa-modal-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(0, 0, 0, 0.6) !important;
   backdrop-filter: blur(2px);
+  z-index: 1 !important;
+  
+  /* CSS Resets */
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
 }
 
-/* Modal content */
+/* Modal content - The actual popup box */
 .club-anketa-modal-content {
-  position: relative;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  width: 100%;
-  max-width: 420px;
-  max-height: 90vh;
-  overflow-y: auto;
+  position: relative !important;
+  z-index: 2 !important;
+  background: #fff !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+  width: 100% !important;
+  max-width: 420px !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
   animation: modalSlideIn 0.25s ease-out;
+  
+  /* CSS Resets - Prevent theme inheritance */
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+  float: none !important;
+  clear: both !important;
+  text-align: left !important;
+  
+  /* Reset table-like styles */
+  display: block !important;
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
 }
 
 @keyframes modalSlideIn {
@@ -411,22 +499,25 @@ body.club-anketa-modal-open {
 
 /* Modal close button */
 .club-anketa-modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: #f5f5f5;
-  border-radius: 50%;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-  color: #666;
+  position: absolute !important;
+  top: 12px !important;
+  right: 12px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border: none !important;
+  background: #f5f5f5 !important;
+  border-radius: 50% !important;
+  font-size: 24px !important;
+  line-height: 1 !important;
+  cursor: pointer !important;
+  color: #666 !important;
   transition: background 0.15s, color 0.15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 10 !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .club-anketa-modal-close:hover {
@@ -436,23 +527,34 @@ body.club-anketa-modal-open {
 
 /* Modal header */
 .club-anketa-modal-header {
-  padding: 28px 24px 16px;
-  text-align: center;
-  border-bottom: 1px solid #eee;
+  padding: 28px 24px 16px !important;
+  text-align: center !important;
+  border-bottom: 1px solid #eee !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  margin: 0 !important;
+  background: transparent !important;
 }
 
 .club-anketa-modal-header h3 {
-  margin: 0 0 8px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #222;
+  margin: 0 0 8px !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #222 !important;
   font-family: var(--anketa-font-stack);
+  border: none !important;
+  background: transparent !important;
 }
 
 .club-anketa-modal-header .modal-subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: #666;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+  color: #666 !important;
+  border: none !important;
+  background: transparent !important;
 }
 
 .club-anketa-modal-header .otp-phone-display {
@@ -464,30 +566,38 @@ body.club-anketa-modal-open {
 
 /* Modal body */
 .club-anketa-modal-body {
-  padding: 24px;
+  padding: 24px !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
 }
 
 /* OTP Input container */
 .otp-input-container {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 16px;
+  display: flex !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  margin-bottom: 16px !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
 }
 
 .otp-digit {
-  width: 48px;
-  height: 56px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  text-align: center;
-  font-size: 24px;
-  font-weight: 700;
+  width: 48px !important;
+  height: 56px !important;
+  border: 2px solid #ddd !important;
+  border-radius: 8px !important;
+  text-align: center !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
   font-family: var(--anketa-font-stack);
-  color: #222;
-  background: #fafafa;
+  color: #222 !important;
+  background: #fafafa !important;
   transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   caret-color: #111;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .otp-digit:focus {
@@ -567,8 +677,11 @@ body.club-anketa-modal-open {
 
 /* Modal footer */
 .club-anketa-modal-footer {
-  padding: 16px 24px 24px;
-  text-align: center;
+  padding: 16px 24px 24px !important;
+  text-align: center !important;
+  margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
 }
 
 .otp-verify-btn {
@@ -601,38 +714,39 @@ body.club-anketa-modal-open {
 /* Responsive adjustments for modal */
 @media (max-width: 480px) {
   .club-anketa-modal {
-    padding: 8px;
+    padding: 8px !important;
   }
 
   .club-anketa-modal-content {
-    border-radius: 8px;
+    border-radius: 8px !important;
+    max-width: 100% !important;
   }
 
   .club-anketa-modal-header {
-    padding: 20px 16px 12px;
+    padding: 20px 16px 12px !important;
   }
 
   .club-anketa-modal-header h3 {
-    font-size: 18px;
+    font-size: 18px !important;
   }
 
   .club-anketa-modal-body {
-    padding: 16px;
+    padding: 16px !important;
   }
 
   .otp-input-container {
-    gap: 6px;
+    gap: 6px !important;
   }
 
   .otp-digit {
-    width: 42px;
-    height: 50px;
-    font-size: 20px;
-    border-radius: 6px;
+    width: 42px !important;
+    height: 50px !important;
+    font-size: 20px !important;
+    border-radius: 6px !important;
   }
 
   .club-anketa-modal-footer {
-    padding: 12px 16px 20px;
+    padding: 12px 16px 20px !important;
   }
 }
 
@@ -664,8 +778,8 @@ body.club-anketa-modal-open {
 
 /* Responsive adjustments for phone verification UI */
 @media (max-width: 640px) {
-  .phone-verify-group .phone-local {
-    padding-right: 80px;
+  .phone-verify-group {
+    gap: 10px !important;
   }
 
   .phone-verify-btn {
@@ -682,8 +796,8 @@ body.club-anketa-modal-open {
     width: 14px;
     height: 14px;
   }
-
-  .wc-phone-verify-group input[type="tel"] {
-    padding-right: 80px !important;
+  
+  .wc-phone-verify-group {
+    gap: 10px !important;
   }
 }
