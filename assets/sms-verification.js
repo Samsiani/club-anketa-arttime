@@ -1,7 +1,7 @@
 /**
  * SMS OTP Verification Script
  * Club Anketa Registration for WooCommerce
- * Version: 2.1.0
+ * Version: 2.2.0
  * 
  * Implements inline phone verification with:
  * - Verify button next to phone field (inline, same row)
@@ -41,7 +41,7 @@
      * Initialize the SMS verification system
      */
     function init() {
-        // Inject OTP Modal HTML
+        // Inject OTP Modal HTML - ensure it's at the end of body for proper positioning
         injectModalHtml();
 
         // Inject verify button for WooCommerce fields that don't have it
@@ -110,10 +110,13 @@
 
     /**
      * Inject the OTP Modal HTML into the page
+     * CRITICAL: Appends as last child of body to ensure it breaks out of any theme containers
      */
     function injectModalHtml() {
-        if ($('#club-anketa-otp-modal').length > 0) {
-            return; // Modal already exists
+        // Remove existing modal first to ensure it's the last child of body
+        var $existingModal = $('#club-anketa-otp-modal');
+        if ($existingModal.length > 0) {
+            $existingModal.remove();
         }
 
         var modalHtml = '<div id="club-anketa-otp-modal" class="club-anketa-modal" style="display:none;">' +
@@ -145,7 +148,9 @@
             '</div>' +
             '</div>';
 
-        $('body').append(modalHtml);
+        // CRITICAL: Append to body as the last child to ensure it's outside any theme containers
+        // This prevents the modal from being trapped inside restricted parent elements
+        $(document.body).append(modalHtml);
     }
 
     /**
@@ -425,6 +430,7 @@
     /**
      * Send OTP via AJAX
      * Modal should already be open when this is called
+     * Enhanced error handling with console logging for debugging
      */
     function sendOtp(phone, successCallback, errorCallback) {
         $.ajax({
@@ -436,13 +442,23 @@
                 phone: phone
             },
             success: function(response) {
+                // Log the full response for debugging
+                console.log('[Club Anketa SMS] Send OTP response:', response);
+                
                 if (response.success) {
                     if (typeof successCallback === 'function') {
                         successCallback();
                     }
                 } else {
+                    // Log detailed error info for debugging API/credential issues
+                    console.error('[Club Anketa SMS] OTP send failed:', {
+                        message: response.data && response.data.message ? response.data.message : 'Unknown error',
+                        data: response.data,
+                        phone: phone
+                    });
+                    
                     // Pass the specific error message to the callback
-                    var errorMsg = response.data && response.data.message ? response.data.message : (i18n.error || 'Error');
+                    var errorMsg = response.data && response.data.message ? response.data.message : (i18n.error || 'SMS sending failed');
                     showMessage(errorMsg, 'error');
                     if (typeof errorCallback === 'function') {
                         errorCallback(errorMsg);
@@ -450,6 +466,14 @@
                 }
             },
             error: function(xhr, status, error) {
+                // Log detailed network/server error for debugging
+                console.error('[Club Anketa SMS] AJAX error:', {
+                    status: status,
+                    error: error,
+                    responseText: xhr.responseText,
+                    statusCode: xhr.status
+                });
+                
                 var errorMsg = i18n.error || 'Network error. Please try again.';
                 showMessage(errorMsg, 'error');
                 if (typeof errorCallback === 'function') {
@@ -461,6 +485,7 @@
 
     /**
      * Verify OTP via AJAX
+     * Enhanced error handling with console logging for debugging
      */
     function verifyOtp() {
         var code = getOtpCode();
@@ -484,6 +509,9 @@
                 code: code
             },
             success: function(response) {
+                // Log the full response for debugging
+                console.log('[Club Anketa SMS] Verify OTP response:', response);
+                
                 $btn.prop('disabled', false).text(i18n.verify || 'Verify');
 
                 if (response.success) {
@@ -511,6 +539,14 @@
                         updateSubmitButtonStates();
                     }, 800);
                 } else {
+                    // Log detailed error info for debugging
+                    console.error('[Club Anketa SMS] OTP verification failed:', {
+                        message: response.data && response.data.message ? response.data.message : 'Unknown error',
+                        data: response.data,
+                        phone: phone,
+                        code: code
+                    });
+                    
                     // Show the SPECIFIC error message returned by the backend
                     var errorMsg = (response.data && response.data.message) 
                         ? response.data.message 
@@ -520,6 +556,14 @@
                 }
             },
             error: function(xhr, status, error) {
+                // Log detailed network/server error for debugging
+                console.error('[Club Anketa SMS] Verify AJAX error:', {
+                    status: status,
+                    error: error,
+                    responseText: xhr.responseText,
+                    statusCode: xhr.status
+                });
+                
                 $btn.prop('disabled', false).text(i18n.verify || 'Verify');
                 showMessage(i18n.error || 'Network error. Please try again.', 'error');
             }

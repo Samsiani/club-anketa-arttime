@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Club Anketa Registration for WooCommerce
  * Description:       Provides a custom WooCommerce registration "Anketa" form via shortcode and print-ready pages (Anketa + Terms). Includes SMS OTP verification for phone number validation.
- * Version:           2.1.0
+ * Version:           2.2.0
  * Author:            Your Name
  * Text Domain:       club-anketa
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('CLUB_ANKETA_VERSION', '2.1.0');
+define('CLUB_ANKETA_VERSION', '2.2.0');
 define('CLUB_ANKETA_PATH', plugin_dir_path(__FILE__));
 define('CLUB_ANKETA_URL', plugin_dir_url(__FILE__));
 

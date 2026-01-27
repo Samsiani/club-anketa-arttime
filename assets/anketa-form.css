@@ -1,4 +1,4 @@
-/* Registration form CSS - Version: 2.0.0 */
+/* Registration form CSS - Version: 2.2.0 */
 :root {
   --anketa-word-spacing: 0.15em;
   --anketa-label-width: 260px;
@@ -139,23 +139,30 @@
 }
 
 /* Phone verification inline UI - Flexbox Side-by-Side Layout */
+/* HIGH SPECIFICITY: Force layout override for themes that set input width: 100% */
 .phone-verify-group {
   display: flex !important;
   flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: nowrap !important; /* CRITICAL: Prevent wrapping to new line */
   align-items: center !important;
-  gap: 15px !important;
+  gap: 10px !important;
   width: 100% !important;
   position: relative;
   box-sizing: border-box !important;
 }
 
-/* Ensure phone-local field takes available space and has proper styling */
+/* Input Field Override - Force theme inputs to shrink, not break layout */
+.phone-verify-group input[type="tel"],
+.phone-verify-group input[type="text"],
+.phone-verify-group input.phone-local,
 .phone-verify-group .phone-local {
-  flex: 1 1 auto !important;
-  width: auto !important;
+  flex: 1 1 auto !important;   /* Allow growing/shrinking */
+  width: auto !important;      /* Override 100% width from themes */
+  min-width: 0 !important;     /* CSS Grid/Flex fix for shrinking */
+  max-width: 100% !important;
   margin: 0 !important;
-  /* Remove the right padding - button is now outside */
+  display: block !important;
+  box-sizing: border-box !important;
 }
 
 /* Standalone phone-verify-group (without phone-group prefix) */
@@ -176,9 +183,10 @@
 }
 
 .phone-verify-btn {
-  flex: 0 0 auto !important;
+  flex: 0 0 auto !important;   /* Prevent shrinking */
   width: auto !important;
   margin: 0 !important;
+  margin-top: 0 !important;    /* Fix margins causing drop */
   background: #111;
   color: #fff;
   border: none;
@@ -188,7 +196,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, transform 0.1s, opacity 0.15s;
-  white-space: nowrap;
+  white-space: nowrap !important; /* Prevent text wrapping */
   font-family: var(--anketa-font-stack);
 }
 
@@ -261,12 +269,13 @@
 }
 
 /* WooCommerce phone field integration - Flexbox Side-by-Side Layout */
+/* HIGH SPECIFICITY: Force layout override for WooCommerce themes */
 .wc-phone-verify-group {
   display: flex !important;
   flex-direction: row !important;
-  flex-wrap: nowrap !important;
+  flex-wrap: nowrap !important; /* CRITICAL: Prevent wrapping to new line */
   align-items: center !important;
-  gap: 15px !important;
+  gap: 10px !important;
   width: 100% !important;
   position: relative;
   box-sizing: border-box !important;
@@ -274,9 +283,13 @@
 
 .wc-phone-verify-group input[type="tel"],
 .wc-phone-verify-group input[type="text"] {
-  flex: 1 1 auto !important;
-  width: auto !important;
+  flex: 1 1 auto !important;   /* Allow growing/shrinking */
+  width: auto !important;      /* Override 100% width from themes */
+  min-width: 0 !important;     /* CSS Grid/Flex fix for shrinking */
+  max-width: 100% !important;
   margin: 0 !important;
+  display: block !important;
+  box-sizing: border-box !important;
 }
 
 .wc-phone-verify-group .phone-verify-container {
@@ -285,6 +298,7 @@
   transform: none !important;
   width: auto !important;
   margin: 0 !important;
+  margin-top: 0 !important; /* Fix margins causing drop */
 }
 
 /* Phone verification warning message */
@@ -387,7 +401,47 @@ body.club-anketa-modal-open {
   overflow: hidden !important;
 }
 
-/* Modal container - Full viewport overlay with CSS Resets */
+/* Modal container - MAXIMUM SPECIFICITY OVERRIDE */
+/* Using ID selector for highest priority to break out of theme containers */
+#club-anketa-otp-modal {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483647 !important; /* Max Z-Index */
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 16px !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  float: none !important;
+  clear: both !important;
+  table-layout: auto !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  line-height: normal !important;
+  font-size: 16px !important;
+  color: #222 !important;
+  /* Force override of any transform/translate that might position it incorrectly */
+  transform: none !important;
+  right: auto !important;
+  bottom: auto !important;
+}
+
+/* Hidden state for modal - ID selector */
+#club-anketa-otp-modal[style*="display: none"],
+#club-anketa-otp-modal[style*="display:none"],
+#club-anketa-otp-modal.hidden {
+  display: none !important;
+}
+
+/* Modal container - Class-based for backup (lower specificity) */
 .club-anketa-modal {
   /* Positioning: Fixed to viewport, covers entire screen */
   position: fixed !important;
@@ -399,7 +453,7 @@ body.club-anketa-modal-open {
   height: 100% !important;
   
   /* High z-index to float above all theme elements */
-  z-index: 9999999 !important;
+  z-index: 2147483647 !important;
   
   /* Centering: Flexbox to center the modal box */
   display: flex !important;
@@ -435,15 +489,17 @@ body.club-anketa-modal-open {
   display: none !important;
 }
 
-/* Modal overlay - Semi-transparent background */
+/* Modal overlay - Semi-transparent background with inset: 0 */
+#club-anketa-otp-modal .club-anketa-modal-overlay,
 .club-anketa-modal-overlay {
   position: fixed !important;
+  /* Using inset: 0 for modern browsers, with explicit fallbacks for older browsers */
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100vw !important;
+  height: 100vh !important;
   background: rgba(0, 0, 0, 0.6) !important;
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
