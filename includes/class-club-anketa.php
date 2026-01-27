@@ -9,6 +9,13 @@ class Club_Anketa_Registration {
     private static $errors = [];
     private static $old = [];
 
+    /**
+     * Rate limiting constants
+     */
+    const OTP_MAX_ATTEMPTS = 3;
+    const OTP_RATE_LIMIT_MINUTES = 10;
+    const OTP_EXPIRY_SECONDS = 300;
+
     public static function instance() {
         if (null === self::$instance) {
             self::$instance = new self();
@@ -33,6 +40,401 @@ class Club_Anketa_Registration {
         // Optional async email hooks (not used by default)
         add_action('club_anketa_send_user_notification', [$this, 'send_user_notification'], 10, 1);
         add_action('club_anketa_send_user_notification_cron', [$this, 'send_user_notification'], 10, 1);
+
+        // SMS OTP AJAX handlers
+        add_action('wp_ajax_club_anketa_send_otp', [$this, 'ajax_send_otp']);
+        add_action('wp_ajax_nopriv_club_anketa_send_otp', [$this, 'ajax_send_otp']);
+        add_action('wp_ajax_club_anketa_verify_otp', [$this, 'ajax_verify_otp']);
+        add_action('wp_ajax_nopriv_club_anketa_verify_otp', [$this, 'ajax_verify_otp']);
+
+        // WooCommerce hooks
+        add_action('woocommerce_review_order_before_submit', [$this, 'checkout_sms_consent']);
+        add_action('woocommerce_edit_account_form', [$this, 'account_sms_consent']);
+        add_action('woocommerce_save_account_details', [$this, 'save_account_sms_consent'], 10, 1);
+
+        // Enqueue scripts on appropriate pages
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_sms_verification_scripts']);
+    }
+
+    // ===== SMS OTP Methods =====
+
+    /**
+     * Enqueue SMS verification scripts and styles
+     */
+    public function enqueue_sms_verification_scripts() {
+        // Check if we're on a page that needs SMS verification
+        global $post;
+        $is_checkout = function_exists('is_checkout') && is_checkout();
+        $is_account = function_exists('is_account_page') && is_account_page();
+        $has_shortcode = $post && has_shortcode($post->post_content, 'club_anketa_form');
+
+        if (!$is_checkout && !$is_account && !$has_shortcode) {
+            return;
+        }
+
+        wp_enqueue_style('club-anketa-form');
+        
+        wp_enqueue_script(
+            'club-anketa-sms-verification',
+            CLUB_ANKETA_URL . 'assets/sms-verification.js',
+            ['jquery'],
+            CLUB_ANKETA_VERSION,
+            true
+        );
+
+        wp_localize_script('club-anketa-sms-verification', 'clubAnketaSms', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce'   => wp_create_nonce('club_anketa_sms_nonce'),
+            'i18n'    => [
+                'sendingOtp'      => __('იგზავნება...', 'club-anketa'),
+                'enterCode'       => __('შეიყვანეთ 6-ნიშნა კოდი', 'club-anketa'),
+                'verifying'       => __('მოწმდება...', 'club-anketa'),
+                'verified'        => __('დადასტურებულია!', 'club-anketa'),
+                'error'           => __('შეცდომა', 'club-anketa'),
+                'invalidCode'     => __('არასწორი კოდი', 'club-anketa'),
+                'codeExpired'     => __('კოდის ვადა ამოიწურა', 'club-anketa'),
+                'resendIn'        => __('ხელახლა გაგზავნა:', 'club-anketa'),
+                'resend'          => __('ხელახლა გაგზავნა', 'club-anketa'),
+                'close'           => __('დახურვა', 'club-anketa'),
+                'verify'          => __('დადასტურება', 'club-anketa'),
+                'phoneRequired'   => __('ტელეფონის ნომერი სავალდებულოა', 'club-anketa'),
+                'rateLimitError'  => __('ზედმეტად ბევრი მცდელობა. გთხოვთ სცადეთ მოგვიანებით.', 'club-anketa'),
+                'modalTitle'      => __('ტელეფონის ვერიფიკაცია', 'club-anketa'),
+                'modalSubtitle'   => __('SMS კოდი გამოგზავნილია ნომერზე:', 'club-anketa'),
+            ]
+        ]);
+    }
+
+    /**
+     * Generate a 6-digit OTP code
+     */
+    private function generate_otp() {
+        return str_pad(wp_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Get rate limit key for phone/IP
+     */
+    private function get_rate_limit_key($phone) {
+        $ip = $this->get_client_ip();
+        return 'otp_rate_' . md5($phone . $ip);
+    }
+
+    /**
+     * Get client IP address
+     */
+    private function get_client_ip() {
+        $ip = '';
+        if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+            $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CLIENT_IP']));
+        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
+        } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
+            $ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+        }
+        return $ip;
+    }
+
+    /**
+     * Check rate limit
+     */
+    private function check_rate_limit($phone) {
+        $key = $this->get_rate_limit_key($phone);
+        $attempts = get_transient($key);
+        
+        if ($attempts === false) {
+            return true; // No previous attempts
+        }
+        
+        return (int) $attempts < self::OTP_MAX_ATTEMPTS;
+    }
+
+    /**
+     * Increment rate limit counter
+     */
+    private function increment_rate_limit($phone) {
+        $key = $this->get_rate_limit_key($phone);
+        $attempts = get_transient($key);
+        
+        if ($attempts === false) {
+            set_transient($key, 1, self::OTP_RATE_LIMIT_MINUTES * MINUTE_IN_SECONDS);
+        } else {
+            set_transient($key, (int) $attempts + 1, self::OTP_RATE_LIMIT_MINUTES * MINUTE_IN_SECONDS);
+        }
+    }
+
+    /**
+     * Send SMS via MS Group API
+     */
+    private function send_sms($phone, $message) {
+        $username   = get_option('club_anketa_sms_username', '');
+        $password   = get_option('club_anketa_sms_password', '');
+        $client_id  = get_option('club_anketa_sms_client_id', '');
+        $service_id = get_option('club_anketa_sms_service_id', '');
+
+        if (empty($username) || empty($password) || empty($client_id) || empty($service_id)) {
+            return [
+                'success' => false,
+                'error'   => __('SMS API not configured.', 'club-anketa'),
+            ];
+        }
+
+        // Format phone number to international format (995XXXXXXXXX)
+        $phone_digits = preg_replace('/\D+/', '', $phone);
+        if (strlen($phone_digits) === 9) {
+            $phone_digits = '995' . $phone_digits;
+        }
+
+        // Note: MS Group API uses HTTP (http://bi.msg.ge/sendsms.php) as documented
+        $api_url = add_query_arg([
+            'username'   => $username,
+            'password'   => $password,
+            'client_id'  => $client_id,
+            'service_id' => $service_id,
+            'to'         => $phone_digits,
+            'text'       => rawurlencode($message),
+            'result'     => 'json',
+        ], 'http://bi.msg.ge/sendsms.php');
+
+        $response = wp_remote_get($api_url, [
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            return [
+                'success' => false,
+                'error'   => $response->get_error_message(),
+            ];
+        }
+
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+
+        // Check response code
+        if (isset($data['code'])) {
+            $code = $data['code'];
+            if (strpos($code, '0000') === 0) {
+                return [
+                    'success'    => true,
+                    'message_id' => isset($data['message_id']) ? $data['message_id'] : '',
+                ];
+            }
+            
+            $error_messages = [
+                '0001' => __('Invalid API credentials or forbidden IP.', 'club-anketa'),
+                '0007' => __('Invalid phone number.', 'club-anketa'),
+                '0008' => __('Insufficient SMS balance.', 'club-anketa'),
+            ];
+            
+            return [
+                'success' => false,
+                'error'   => isset($error_messages[$code]) ? $error_messages[$code] : __('SMS sending failed.', 'club-anketa'),
+            ];
+        }
+
+        // Fallback: check if response starts with 0000
+        if (strpos($body, '0000') === 0) {
+            return [
+                'success' => true,
+                'message_id' => trim(str_replace('0000-', '', $body)),
+            ];
+        }
+
+        return [
+            'success' => false,
+            'error'   => __('Unexpected API response.', 'club-anketa'),
+        ];
+    }
+
+    /**
+     * AJAX handler: Send OTP
+     */
+    public function ajax_send_otp() {
+        check_ajax_referer('club_anketa_sms_nonce', 'nonce');
+
+        $phone = isset($_POST['phone']) ? sanitize_text_field(wp_unslash($_POST['phone'])) : '';
+        $phone_digits = preg_replace('/\D+/', '', $phone);
+
+        if (strlen($phone_digits) !== 9) {
+            wp_send_json_error(['message' => __('Invalid phone number. Must be 9 digits.', 'club-anketa')]);
+        }
+
+        // Check rate limit
+        if (!$this->check_rate_limit($phone_digits)) {
+            wp_send_json_error(['message' => __('Too many attempts. Please try again later.', 'club-anketa')]);
+        }
+
+        // Generate OTP
+        $otp = $this->generate_otp();
+        
+        // Store OTP in transient
+        $otp_key = 'otp_' . $phone_digits;
+        set_transient($otp_key, $otp, self::OTP_EXPIRY_SECONDS);
+
+        // Send SMS
+        $message = sprintf(__('თქვენი ვერიფიკაციის კოდია: %s', 'club-anketa'), $otp);
+        $result = $this->send_sms($phone_digits, $message);
+
+        if ($result['success']) {
+            $this->increment_rate_limit($phone_digits);
+            wp_send_json_success([
+                'message' => __('OTP sent successfully.', 'club-anketa'),
+                'expires' => self::OTP_EXPIRY_SECONDS,
+            ]);
+        } else {
+            wp_send_json_error(['message' => $result['error']]);
+        }
+    }
+
+    /**
+     * AJAX handler: Verify OTP
+     */
+    public function ajax_verify_otp() {
+        check_ajax_referer('club_anketa_sms_nonce', 'nonce');
+
+        $phone = isset($_POST['phone']) ? sanitize_text_field(wp_unslash($_POST['phone'])) : '';
+        $code = isset($_POST['code']) ? sanitize_text_field(wp_unslash($_POST['code'])) : '';
+        $phone_digits = preg_replace('/\D+/', '', $phone);
+
+        if (strlen($phone_digits) !== 9 || strlen($code) !== 6) {
+            wp_send_json_error(['message' => __('Invalid phone or code format.', 'club-anketa')]);
+        }
+
+        $otp_key = 'otp_' . $phone_digits;
+        $stored_otp = get_transient($otp_key);
+
+        if ($stored_otp === false) {
+            wp_send_json_error(['message' => __('OTP expired. Please request a new code.', 'club-anketa')]);
+        }
+
+        if ($stored_otp !== $code) {
+            wp_send_json_error(['message' => __('Invalid OTP code.', 'club-anketa')]);
+        }
+
+        // OTP verified - delete transient and create verification token
+        delete_transient($otp_key);
+        
+        // Create a temporary verification token for form submission
+        $verify_token = wp_generate_password(32, false);
+        $verify_key = 'otp_verified_' . $phone_digits;
+        set_transient($verify_key, $verify_token, self::OTP_EXPIRY_SECONDS);
+
+        wp_send_json_success([
+            'message' => __('Phone verified successfully.', 'club-anketa'),
+            'token'   => $verify_token,
+        ]);
+    }
+
+    /**
+     * Check if phone is verified via OTP
+     */
+    private function is_phone_verified($phone) {
+        $phone_digits = preg_replace('/\D+/', '', $phone);
+        $verify_key = 'otp_verified_' . $phone_digits;
+        $token = isset($_POST['otp_verification_token']) ? sanitize_text_field(wp_unslash($_POST['otp_verification_token'])) : '';
+        
+        if (empty($token)) {
+            return false;
+        }
+        
+        $stored_token = get_transient($verify_key);
+        return $stored_token !== false && $stored_token === $token;
+    }
+
+    /**
+     * Check if user already has SMS consent
+     */
+    private function user_has_sms_consent($user_id = null) {
+        if (!$user_id && is_user_logged_in()) {
+            $user_id = get_current_user_id();
+        }
+        
+        if (!$user_id) {
+            return false;
+        }
+        
+        $consent = get_user_meta($user_id, '_sms_consent', true);
+        return $consent === 'yes';
+    }
+
+    /**
+     * WooCommerce Checkout SMS Consent
+     */
+    public function checkout_sms_consent() {
+        // Skip if user already has SMS consent
+        if ($this->user_has_sms_consent()) {
+            return;
+        }
+
+        $this->render_sms_consent_fields('checkout');
+    }
+
+    /**
+     * WooCommerce My Account SMS Consent
+     */
+    public function account_sms_consent() {
+        $user_id = get_current_user_id();
+        $current_consent = get_user_meta($user_id, '_sms_consent', true);
+        
+        $this->render_sms_consent_fields('account', $current_consent);
+    }
+
+    /**
+     * Save Account SMS Consent
+     */
+    public function save_account_sms_consent($user_id) {
+        if (!isset($_POST['anketa_sms_consent'])) {
+            return;
+        }
+
+        $new_consent = sanitize_text_field(wp_unslash($_POST['anketa_sms_consent']));
+        $old_consent = get_user_meta($user_id, '_sms_consent', true);
+
+        // If changing from "no" to "yes", require OTP verification
+        if ($new_consent === 'yes' && $old_consent !== 'yes') {
+            $phone = get_user_meta($user_id, 'billing_phone', true);
+            $phone_digits = preg_replace('/\D+/', '', $phone);
+            
+            // Extract 9-digit local number
+            if (preg_match('/995(\d{9})$/', $phone_digits, $m)) {
+                $phone_digits = $m[1];
+            } elseif (strlen($phone_digits) > 9) {
+                $phone_digits = substr($phone_digits, -9);
+            }
+            
+            if (!$this->is_phone_verified($phone_digits)) {
+                // Don't update, verification required
+                wc_add_notice(__('Phone verification required to enable SMS notifications.', 'club-anketa'), 'error');
+                return;
+            }
+        }
+
+        update_user_meta($user_id, '_sms_consent', $new_consent);
+    }
+
+    /**
+     * Render SMS consent fields
+     */
+    private function render_sms_consent_fields($context = 'registration', $current_value = 'yes') {
+        $field_id = 'anketa_sms_consent_' . $context;
+        ?>
+        <div class="club-anketa-sms-consent" data-context="<?php echo esc_attr($context); ?>">
+            <div class="row">
+                <span class="label"><?php esc_html_e('SMS შეტყობინებების მიღების თანხმობა', 'club-anketa'); ?></span>
+                <div class="field sms-consent-options">
+                    <label style="margin-right:12px;">
+                        <input type="radio" name="anketa_sms_consent" value="yes" <?php checked($current_value, 'yes'); ?> class="sms-consent-radio" />
+                        <?php esc_html_e('დიახ', 'club-anketa'); ?>
+                    </label>
+                    <label>
+                        <input type="radio" name="anketa_sms_consent" value="no" <?php checked($current_value, 'no'); ?> class="sms-consent-radio" />
+                        <?php esc_html_e('არა', 'club-anketa'); ?>
+                    </label>
+                </div>
+            </div>
+            <input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />
+        </div>
+        <?php
     }
 
     // ===== Routing for print pages =====
@@ -146,6 +548,16 @@ class Club_Anketa_Registration {
         $sms_consent = strtolower($data['anketa_sms_consent']);
         if ($sms_consent !== 'yes' && $sms_consent !== 'no') {
             $sms_consent = 'yes';
+        }
+
+        // If SMS consent is "yes", require OTP verification
+        if ($sms_consent === 'yes') {
+            if (!$this->is_phone_verified($local_digits)) {
+                self::$errors[] = __('Phone verification is required for SMS consent. Please verify your phone number.', 'club-anketa');
+                return;
+            }
+            // Clean up verification token after successful use
+            delete_transient('otp_verified_' . $local_digits);
         }
 
         // Create user quickly
@@ -379,18 +791,19 @@ HTML;
                 </div>
 
                 <!-- SMS consent -->
-                <div class="row">
+                <div class="row club-anketa-sms-consent" data-context="registration">
                     <span class="label">SMS შეტყობინებების მიღების თანხმობა</span>
-                    <div class="field">
+                    <div class="field sms-consent-options">
                         <label style="margin-right:12px;">
-                            <input type="radio" name="anketa_sms_consent" value="yes" <?php checked($sms_old, 'yes'); ?> />
+                            <input type="radio" name="anketa_sms_consent" value="yes" <?php checked($sms_old, 'yes'); ?> class="sms-consent-radio" />
                             დიახ
                         </label>
                         <label>
-                            <input type="radio" name="anketa_sms_consent" value="no" <?php checked($sms_old, 'no'); ?> />
+                            <input type="radio" name="anketa_sms_consent" value="no" <?php checked($sms_old, 'no'); ?> class="sms-consent-radio" />
                             არა
                         </label>
                     </div>
+                    <input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />
                 </div>
 
                 <div class="row">

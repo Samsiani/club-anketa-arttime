@@ -102,6 +102,31 @@ add_action('admin_init', function () {
         'default'           => '',
     ]);
 
+    // MS Group SMS API Settings
+    register_setting('club_anketa_settings_group', 'club_anketa_sms_username', [
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '',
+    ]);
+
+    register_setting('club_anketa_settings_group', 'club_anketa_sms_password', [
+        'type'              => 'string',
+        'sanitize_callback' => 'sanitize_text_field',
+        'default'           => '',
+    ]);
+
+    register_setting('club_anketa_settings_group', 'club_anketa_sms_client_id', [
+        'type'              => 'integer',
+        'sanitize_callback' => 'absint',
+        'default'           => 0,
+    ]);
+
+    register_setting('club_anketa_settings_group', 'club_anketa_sms_service_id', [
+        'type'              => 'integer',
+        'sanitize_callback' => 'absint',
+        'default'           => 0,
+    ]);
+
     add_settings_section(
         'club_anketa_main',
         __('General', 'club-anketa'),
@@ -109,6 +134,60 @@ add_action('admin_init', function () {
             echo '<p>' . esc_html__('Configure the Club Anketa plugin.', 'club-anketa') . '</p>';
         },
         'club_anketa_settings'
+    );
+
+    // SMS API Settings Section
+    add_settings_section(
+        'club_anketa_sms_api',
+        __('MS Group SMS API Settings', 'club-anketa'),
+        function () {
+            echo '<p>' . esc_html__('Configure your MS Group SMS API credentials for OTP verification.', 'club-anketa') . '</p>';
+        },
+        'club_anketa_settings'
+    );
+
+    add_settings_field(
+        'club_anketa_sms_username',
+        __('SMS API Username', 'club-anketa'),
+        function () {
+            $val = esc_attr(get_option('club_anketa_sms_username', ''));
+            echo '<input type="text" name="club_anketa_sms_username" value="' . $val . '" class="regular-text" placeholder="Your API username" />';
+        },
+        'club_anketa_settings',
+        'club_anketa_sms_api'
+    );
+
+    add_settings_field(
+        'club_anketa_sms_password',
+        __('SMS API Password', 'club-anketa'),
+        function () {
+            $val = esc_attr(get_option('club_anketa_sms_password', ''));
+            echo '<input type="password" name="club_anketa_sms_password" value="' . $val . '" class="regular-text" placeholder="Your API password" />';
+        },
+        'club_anketa_settings',
+        'club_anketa_sms_api'
+    );
+
+    add_settings_field(
+        'club_anketa_sms_client_id',
+        __('SMS API Client ID', 'club-anketa'),
+        function () {
+            $val = esc_attr(get_option('club_anketa_sms_client_id', ''));
+            echo '<input type="number" name="club_anketa_sms_client_id" value="' . $val . '" class="regular-text" placeholder="Client identifier" />';
+        },
+        'club_anketa_settings',
+        'club_anketa_sms_api'
+    );
+
+    add_settings_field(
+        'club_anketa_sms_service_id',
+        __('SMS API Service ID', 'club-anketa'),
+        function () {
+            $val = esc_attr(get_option('club_anketa_sms_service_id', ''));
+            echo '<input type="number" name="club_anketa_sms_service_id" value="' . $val . '" class="regular-text" placeholder="Brand-name identifier" />';
+        },
+        'club_anketa_settings',
+        'club_anketa_sms_api'
     );
 
     add_settings_field(
