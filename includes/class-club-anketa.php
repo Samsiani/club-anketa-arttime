@@ -185,6 +185,7 @@ class Club_Anketa_Registration {
             $phone_digits = '995' . $phone_digits;
         }
 
+        // Note: MS Group API uses HTTP (http://bi.msg.ge/sendsms.php) as documented
         $api_url = add_query_arg([
             'username'   => $username,
             'password'   => $password,
@@ -197,7 +198,6 @@ class Club_Anketa_Registration {
 
         $response = wp_remote_get($api_url, [
             'timeout' => 30,
-            'sslverify' => false,
         ]);
 
         if (is_wp_error($response)) {

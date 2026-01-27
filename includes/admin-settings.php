@@ -116,15 +116,15 @@ add_action('admin_init', function () {
     ]);
 
     register_setting('club_anketa_settings_group', 'club_anketa_sms_client_id', [
-        'type'              => 'string',
+        'type'              => 'integer',
         'sanitize_callback' => 'absint',
-        'default'           => '',
+        'default'           => 0,
     ]);
 
     register_setting('club_anketa_settings_group', 'club_anketa_sms_service_id', [
-        'type'              => 'string',
+        'type'              => 'integer',
         'sanitize_callback' => 'absint',
-        'default'           => '',
+        'default'           => 0,
     ]);
 
     add_settings_section(
