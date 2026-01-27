@@ -10,10 +10,11 @@
  * - Reset on phone number change (edit detection)
  * - Form submission blocking until verified
  * 
- * Works on three locations:
- * 1. Registration Shortcode Form ([club_anketa_form])
- * 2. WooCommerce Checkout Page (billing_phone field)
- * 3. My Account - Edit Address/Details Page
+ * Works on four locations:
+ * 1. Registration Shortcode Form ([club_anketa_form]) - #anketa_phone_local
+ * 2. WooCommerce Checkout Page - #billing_phone
+ * 3. WooCommerce Registration Form - #reg_billing_phone
+ * 4. My Account - Edit Address/Details Page - #account_phone
  */
 (function($) {
     'use strict';
@@ -64,30 +65,38 @@
     }
 
     /**
-     * Inject verify button for WooCommerce billing phone field
-     * This handles both checkout and account pages
+     * Inject verify button for WooCommerce and other phone fields
+     * This handles checkout, registration, and account pages
      */
     function injectVerifyButtonForWooCommerce() {
-        // Check for WooCommerce billing phone field without verify button
-        var $billingPhone = $('#billing_phone');
-        if ($billingPhone.length > 0 && !$billingPhone.closest('.phone-verify-group').length) {
-            // Wrap the phone input if needed
-            var $wrapper = $billingPhone.parent();
-            if (!$wrapper.hasClass('phone-verify-group')) {
-                $billingPhone.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
+        // Array of phone field selectors to target
+        var phoneSelectors = [
+            '#billing_phone',        // WooCommerce Checkout
+            '#reg_billing_phone',    // WooCommerce Registration Form
+            '#account_phone',        // My Account > Account Details
+            '#anketa_phone_local'    // Registration Shortcode Form (already handled in PHP)
+        ];
+
+        phoneSelectors.forEach(function(selector) {
+            var $phoneInput = $(selector);
+            
+            // Skip if not found or already has verify group
+            if ($phoneInput.length === 0 || $phoneInput.closest('.phone-verify-group').length > 0) {
+                return;
             }
+
+            // Wrap the phone input in phone-verify-group container
+            $phoneInput.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
             
             // Add verify container after the input
-            if (!$billingPhone.siblings('.phone-verify-container').length) {
-                var verifyHtml = '<div class="phone-verify-container">' +
-                    '<button type="button" class="phone-verify-btn" aria-label="' + i18n.verify + '">' + 
-                    (i18n.verifyBtn || 'Verify') + '</button>' +
-                    '<span class="phone-verified-icon" style="display:none;" aria-label="' + i18n.verified + '">' +
-                    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-                    '</span></div>';
-                $billingPhone.after(verifyHtml);
-            }
-        }
+            var verifyHtml = '<div class="phone-verify-container">' +
+                '<button type="button" class="phone-verify-btn" aria-label="' + i18n.verify + '">' + 
+                (i18n.verifyBtn || 'Verify') + '</button>' +
+                '<span class="phone-verified-icon" style="display:none;" aria-label="' + i18n.verified + '">' +
+                '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                '</span></div>';
+            $phoneInput.after(verifyHtml);
+        });
     }
 
     /**
@@ -135,7 +144,8 @@
      */
     function initializePhoneFields() {
         // Check each phone field and set initial state
-        $('.phone-local, #billing_phone, #anketa_phone_local').each(function() {
+        // Include all possible phone field selectors
+        $('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').each(function() {
             var $input = $(this);
             var currentPhone = normalizePhone($input.val());
             updatePhoneFieldState($input, currentPhone);
@@ -218,10 +228,10 @@
      * Applies to: Registration form, Checkout, My Account Edit Address/Details
      */
     function updateSubmitButtonStates() {
-        // Find all forms with phone verification (including edit-address form)
-        $('.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address').each(function() {
+        // Find all forms with phone verification (including edit-address form and registration)
+        $('.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address, form.woocommerce-form-register, form.register').each(function() {
             var $form = $(this);
-            var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone').first();
+            var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone, #reg_billing_phone, #account_phone').first();
             var $submitBtn = $form.find('.submit-btn, button[type="submit"], input[type="submit"]').not('.phone-verify-btn, .otp-verify-btn, .otp-resend-btn');
             
             if ($phoneInput.length === 0 || $submitBtn.length === 0) {
@@ -236,7 +246,8 @@
             var isRegistrationForm = $form.hasClass('club-anketa-form');
             var isCheckout = $form.hasClass('checkout');
             var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
-            var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || $form.find('.phone-verify-group').length > 0;
+            var isWcRegistration = $form.hasClass('woocommerce-form-register') || $form.hasClass('register');
+            var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0;
 
             if (requiresVerification && phoneValid && !phoneVerified) {
                 // Phone is filled but not verified - disable submit
@@ -259,7 +270,8 @@
      */
     function bindEvents() {
         // Phone input change - real-time monitoring (edit detection)
-        $(document).on('input change', '.phone-local, #billing_phone, #anketa_phone_local', function() {
+        // Include all phone field selectors
+        $(document).on('input change', '.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local', function() {
             var $input = $(this);
             var currentPhone = $input.val();
             // Store reference to current field for later use
@@ -274,7 +286,7 @@
             
             var $btn = $(this);
             var $container = $btn.closest('.phone-verify-group, .phone-group');
-            var $input = $container.find('.phone-local, #billing_phone, #anketa_phone_local, input[type="tel"]').first();
+            var $input = $container.find('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, input[type="tel"]').first();
             
             var phone = normalizePhone($input.val());
             
@@ -307,7 +319,7 @@
         });
 
         // Form submission interception - block if verification required
-        $(document).on('submit', '.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address', function(e) {
+        $(document).on('submit', '.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address, form.woocommerce-form-register, form.register', function(e) {
             return handleFormSubmit(e, $(this));
         });
 
@@ -349,7 +361,7 @@
      * Blocks submission if phone is filled but not verified
      */
     function handleFormSubmit(e, $form) {
-        var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone').first();
+        var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone, #reg_billing_phone, #account_phone').first();
         
         if ($phoneInput.length === 0) {
             return true; // No phone field, allow submission
@@ -361,7 +373,8 @@
         var isRegistrationForm = $form.hasClass('club-anketa-form');
         var isCheckout = $form.hasClass('checkout');
         var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
-        var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || $form.find('.phone-verify-group').length > 0;
+        var isWcRegistration = $form.hasClass('woocommerce-form-register') || $form.hasClass('register');
+        var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0;
 
         if (requiresVerification && currentPhone.length === 9 && !isPhoneVerified(currentPhone)) {
             e.preventDefault();
@@ -477,8 +490,8 @@
                     updateVerificationToken(verificationToken);
                     showMessage(i18n.verified || 'Verified!', 'success');
                     
-                    // Update all phone field states
-                    $('.phone-local, #billing_phone, #anketa_phone_local').each(function() {
+                    // Update all phone field states (include all selectors)
+                    $('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').each(function() {
                         updatePhoneFieldState($(this), $(this).val());
                     });
 
@@ -510,8 +523,8 @@
     function updateVerificationToken(token) {
         $('.otp-verification-token').val(token);
         
-        // Also add to any form that needs it (including edit-address form)
-        $('form.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address').each(function() {
+        // Also add to any form that needs it (including edit-address form and registration)
+        $('form.club-anketa-form, form.checkout, form.woocommerce-EditAccountForm, form.edit-address, form.woocommerce-form-register, form.register').each(function() {
             var $form = $(this);
             if (!$form.find('.otp-verification-token').length) {
                 $form.append('<input type="hidden" name="otp_verification_token" value="' + token + '" class="otp-verification-token" />');

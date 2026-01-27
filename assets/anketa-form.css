@@ -243,19 +243,21 @@
 .wc-phone-verify-group {
   display: flex !important;
   align-items: center;
+  gap: 12px;
+  width: 100%;
   position: relative;
 }
 
-.wc-phone-verify-group input[type="tel"] {
+.wc-phone-verify-group input[type="tel"],
+.wc-phone-verify-group input[type="text"] {
   flex: 1;
-  padding-right: 90px !important;
+  margin: 0 !important;
 }
 
 .wc-phone-verify-group .phone-verify-container {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: 0 0 auto;
+  position: static;
+  transform: none;
 }
 
 /* Phone verification warning message */
