@@ -1,4 +1,4 @@
-/* Registration form CSS - Version: 1.4.4 */
+/* Registration form CSS - Version: 1.5.0 */
 :root {
   --anketa-word-spacing: 0.15em;
   --anketa-label-width: 260px;
@@ -204,4 +204,314 @@
 .club-anketa-form .label:focus {
   outline: 2px dashed #444;
   outline-offset: 2px;
+}
+
+/* ===== OTP Verification Modal Styles ===== */
+
+/* Body scroll lock when modal is open */
+body.club-anketa-modal-open {
+  overflow: hidden;
+}
+
+/* Modal container */
+.club-anketa-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 999999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+/* Modal overlay */
+.club-anketa-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+/* Modal content */
+.club-anketa-modal-content {
+  position: relative;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: modalSlideIn 0.25s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Modal close button */
+.club-anketa-modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.club-anketa-modal-close:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+/* Modal header */
+.club-anketa-modal-header {
+  padding: 28px 24px 16px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.club-anketa-modal-header h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #222;
+  font-family: var(--anketa-font-stack);
+}
+
+.club-anketa-modal-header .modal-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.club-anketa-modal-header .otp-phone-display {
+  font-weight: 600;
+  color: #333;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+/* Modal body */
+.club-anketa-modal-body {
+  padding: 24px;
+}
+
+/* OTP Input container */
+.otp-input-container {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.otp-digit {
+  width: 48px;
+  height: 56px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  font-family: var(--anketa-font-stack);
+  color: #222;
+  background: #fafafa;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  caret-color: #111;
+}
+
+.otp-digit:focus {
+  outline: none;
+  border-color: #111;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08);
+}
+
+.otp-digit:not(:placeholder-shown) {
+  border-color: #111;
+  background: #fff;
+}
+
+/* OTP Message */
+.otp-message {
+  text-align: center;
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  min-height: 20px;
+  margin-bottom: 12px;
+}
+
+.otp-message:empty {
+  display: none;
+}
+
+.otp-message.success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.otp-message.error {
+  background: #ffebee;
+  color: #c62828;
+}
+
+.otp-message.info {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+/* Resend container */
+.otp-resend-container {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.otp-countdown {
+  display: inline-block;
+}
+
+.countdown-timer {
+  font-weight: 600;
+  color: #111;
+  min-width: 24px;
+  display: inline-block;
+}
+
+.otp-resend-btn {
+  background: none;
+  border: none;
+  color: #1976d2;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  text-decoration: underline;
+  transition: color 0.15s;
+}
+
+.otp-resend-btn:hover {
+  color: #0d47a1;
+}
+
+/* Modal footer */
+.club-anketa-modal-footer {
+  padding: 16px 24px 24px;
+  text-align: center;
+}
+
+.otp-verify-btn {
+  width: 100%;
+  padding: 14px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  background: #111;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--anketa-font-stack);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.otp-verify-btn:hover {
+  background: #000;
+}
+
+.otp-verify-btn:active {
+  transform: scale(0.98);
+}
+
+.otp-verify-btn:disabled {
+  background: #999;
+  cursor: not-allowed;
+}
+
+/* Responsive adjustments for modal */
+@media (max-width: 480px) {
+  .club-anketa-modal {
+    padding: 8px;
+  }
+
+  .club-anketa-modal-content {
+    border-radius: 8px;
+  }
+
+  .club-anketa-modal-header {
+    padding: 20px 16px 12px;
+  }
+
+  .club-anketa-modal-header h3 {
+    font-size: 18px;
+  }
+
+  .club-anketa-modal-body {
+    padding: 16px;
+  }
+
+  .otp-input-container {
+    gap: 6px;
+  }
+
+  .otp-digit {
+    width: 42px;
+    height: 50px;
+    font-size: 20px;
+    border-radius: 6px;
+  }
+
+  .club-anketa-modal-footer {
+    padding: 12px 16px 20px;
+  }
+}
+
+/* SMS consent section styling */
+.club-anketa-sms-consent .sms-consent-options label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.club-anketa-sms-consent .sms-consent-options input[type="radio"] {
+  margin-right: 4px;
+}
+
+/* Verification status indicator */
+.sms-verified-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  color: #2e7d32;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sms-verified-indicator::before {
+  content: "✓";
+  margin-right: 4px;
 }
