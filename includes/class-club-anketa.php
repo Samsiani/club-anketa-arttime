@@ -84,6 +84,14 @@ class Club_Anketa_Registration {
             return;
         }
 
+        // Register the style here to ensure it loads on WooCommerce pages
+        // where the shortcode may not be present
+        wp_register_style(
+            'club-anketa-form',
+            CLUB_ANKETA_URL . 'assets/anketa-form.css',
+            [],
+            CLUB_ANKETA_VERSION
+        );
         wp_enqueue_style('club-anketa-form');
         
         wp_enqueue_script(
@@ -872,13 +880,7 @@ class Club_Anketa_Registration {
     // ===== Shortcode =====
 
     public function shortcode_form() {
-        // Enqueue form CSS
-        wp_register_style(
-            'club-anketa-form',
-            CLUB_ANKETA_URL . 'assets/anketa-form.css',
-            [],
-            CLUB_ANKETA_VERSION
-        );
+        // Enqueue form CSS (style is registered in enqueue_sms_verification_scripts)
         wp_enqueue_style('club-anketa-form');
 
         $errors = self::$errors;
