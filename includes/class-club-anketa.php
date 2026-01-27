@@ -52,6 +52,12 @@ class Club_Anketa_Registration {
         add_action('woocommerce_edit_account_form', [$this, 'account_sms_consent']);
         add_action('woocommerce_save_account_details', [$this, 'save_account_sms_consent'], 10, 1);
 
+        // WooCommerce phone field verification hooks
+        add_filter('woocommerce_form_field_tel', [$this, 'modify_phone_field_html'], 20, 4);
+        add_action('woocommerce_after_edit_address_form_billing', [$this, 'add_account_phone_verification']);
+        add_action('woocommerce_checkout_process', [$this, 'validate_checkout_phone_verification']);
+        add_action('woocommerce_save_account_details_errors', [$this, 'validate_account_phone_verification'], 10, 1);
+
         // Enqueue scripts on appropriate pages
         add_action('wp_enqueue_scripts', [$this, 'enqueue_sms_verification_scripts']);
     }
@@ -479,6 +485,170 @@ class Club_Anketa_Registration {
             <input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />
         </div>
         <?php
+    }
+
+    // ===== WooCommerce Phone Verification =====
+
+    /**
+     * Modify WooCommerce phone field HTML to add verify button
+     * Applies to billing_phone field on checkout and account pages
+     */
+    public function modify_phone_field_html($field, $key, $args, $value) {
+        // Only modify billing_phone field
+        if ($key !== 'billing_phone') {
+            return $field;
+        }
+
+        // Check if we're on checkout or account page
+        $is_checkout = function_exists('is_checkout') && is_checkout();
+        $is_account = function_exists('is_account_page') && is_account_page();
+        
+        if (!$is_checkout && !$is_account) {
+            return $field;
+        }
+
+        // Get verified phone for comparison
+        $verified_phone = '';
+        if (is_user_logged_in()) {
+            $verified_phone = $this->get_user_verified_phone(get_current_user_id());
+        }
+
+        // Check if current phone matches verified phone
+        $current_phone = $this->normalize_phone($value);
+        $is_verified = !empty($verified_phone) && $current_phone === $verified_phone;
+
+        // Inject the verification UI after the input field
+        $verify_button_html = '<div class="phone-verify-container">';
+        
+        if ($is_verified) {
+            $verify_button_html .= '<button type="button" class="phone-verify-btn" style="display:none;" aria-label="' . esc_attr__('Verify phone number', 'club-anketa') . '">' . esc_html__('Verify', 'club-anketa') . '</button>';
+            $verify_button_html .= '<span class="phone-verified-icon" aria-label="' . esc_attr__('Phone verified', 'club-anketa') . '">';
+        } else {
+            $verify_button_html .= '<button type="button" class="phone-verify-btn" aria-label="' . esc_attr__('Verify phone number', 'club-anketa') . '">' . esc_html__('Verify', 'club-anketa') . '</button>';
+            $verify_button_html .= '<span class="phone-verified-icon" style="display:none;" aria-label="' . esc_attr__('Phone verified', 'club-anketa') . '">';
+        }
+        
+        $verify_button_html .= '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        $verify_button_html .= '</span></div>';
+
+        // Add hidden field for verification token
+        $verify_button_html .= '<input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />';
+
+        // Modify the field HTML to wrap in phone-verify-group and add button
+        // Find the input field and wrap it
+        $field = preg_replace(
+            '/(<input[^>]*id="billing_phone"[^>]*>)/i',
+            '<div class="phone-verify-group wc-phone-verify-group">$1' . $verify_button_html . '</div>',
+            $field
+        );
+
+        return $field;
+    }
+
+    /**
+     * Normalize phone number to 9-digit format
+     */
+    private function normalize_phone($phone) {
+        if (empty($phone)) {
+            return '';
+        }
+        
+        $digits = preg_replace('/\D+/', '', $phone);
+        
+        // If it includes country code, extract local part
+        if (strlen($digits) > 9 && strpos($digits, '995') === 0) {
+            $digits = substr($digits, 3);
+        }
+        
+        // Take only last 9 digits
+        if (strlen($digits) > 9) {
+            $digits = substr($digits, -9);
+        }
+        
+        return $digits;
+    }
+
+    /**
+     * Add phone verification UI to account edit address page
+     */
+    public function add_account_phone_verification() {
+        // This hook fires after the billing address form
+        // The phone field should already have been modified by modify_phone_field_html
+        // Just ensure hidden field exists for the form
+        ?>
+        <script>
+        // Ensure verification token field exists in the form
+        (function() {
+            var form = document.querySelector('form.woocommerce-EditAccountForm, form.edit-address');
+            if (form && !form.querySelector('.otp-verification-token')) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'otp_verification_token';
+                input.value = '';
+                input.className = 'otp-verification-token';
+                form.appendChild(input);
+            }
+        })();
+        </script>
+        <?php
+    }
+
+    /**
+     * Validate phone verification on checkout
+     */
+    public function validate_checkout_phone_verification() {
+        if (!isset($_POST['billing_phone'])) {
+            return;
+        }
+
+        $phone = sanitize_text_field(wp_unslash($_POST['billing_phone']));
+        $phone_digits = $this->normalize_phone($phone);
+
+        if (strlen($phone_digits) !== 9) {
+            return; // Invalid phone, WooCommerce will handle validation
+        }
+
+        // Check if user is logged in and phone matches verified phone
+        if (is_user_logged_in()) {
+            $verified_phone = $this->get_user_verified_phone(get_current_user_id());
+            if ($phone_digits === $verified_phone) {
+                return; // Phone already verified for this user
+            }
+        }
+
+        // Check for OTP verification token
+        if (!$this->is_phone_verified($phone_digits)) {
+            wc_add_notice(__('Phone verification required. Please verify your phone number before placing the order.', 'club-anketa'), 'error');
+        }
+    }
+
+    /**
+     * Validate phone verification on account details save
+     */
+    public function validate_account_phone_verification($errors) {
+        if (!isset($_POST['billing_phone'])) {
+            return;
+        }
+
+        $phone = sanitize_text_field(wp_unslash($_POST['billing_phone']));
+        $phone_digits = $this->normalize_phone($phone);
+
+        if (strlen($phone_digits) !== 9) {
+            return; // Invalid phone format will be handled by WooCommerce
+        }
+
+        $user_id = get_current_user_id();
+        $verified_phone = $this->get_user_verified_phone($user_id);
+
+        // If phone number changed, require verification
+        if ($phone_digits !== $verified_phone) {
+            if (!$this->is_phone_verified($phone_digits)) {
+                $errors->add('phone_verification', __('Phone verification required. Please verify your new phone number.', 'club-anketa'));
+            } else {
+                // Update verified phone number after successful verification
+                update_user_meta($user_id, '_verified_phone_number', $phone_digits);
+            }
+        }
     }
 
     // ===== Routing for print pages =====
