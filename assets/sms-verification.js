@@ -10,10 +10,11 @@
  * - Reset on phone number change (edit detection)
  * - Form submission blocking until verified
  * 
- * Works on three locations:
- * 1. Registration Shortcode Form ([club_anketa_form])
- * 2. WooCommerce Checkout Page (billing_phone field)
- * 3. My Account - Edit Address/Details Page
+ * Works on four locations:
+ * 1. Registration Shortcode Form ([club_anketa_form]) - #anketa_phone_local
+ * 2. WooCommerce Checkout Page - #billing_phone
+ * 3. WooCommerce Registration Form - #reg_billing_phone
+ * 4. My Account - Edit Address/Details Page - #account_phone
  */
 (function($) {
     'use strict';

@@ -74,9 +74,10 @@ class Club_Anketa_Registration {
         $is_account = function_exists('is_account_page') && is_account_page();
         $has_shortcode = $post && has_shortcode($post->post_content, 'club_anketa_form');
         
-        // Check if this is a WooCommerce my-account page which includes registration form
-        // Note: is_account_page() returns true for both login and registration pages
-        // Also check if we have any of the WooCommerce registration/account forms
+        // Check if this is a WooCommerce page (checkout or account)
+        // Note: is_account_page() returns true for My Account pages which include:
+        // - Login/Registration form
+        // - Edit Account/Address forms
         $is_wc_page = $is_checkout || $is_account;
 
         if (!$is_wc_page && !$has_shortcode) {
