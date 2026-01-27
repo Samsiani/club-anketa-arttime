@@ -399,7 +399,7 @@ body.club-anketa-modal-open {
   height: 100% !important;
   
   /* High z-index to float above all theme elements */
-  z-index: 99999999 !important;
+  z-index: 9999999 !important;
   
   /* Centering: Flexbox to center the modal box */
   display: flex !important;
@@ -425,15 +425,13 @@ body.club-anketa-modal-open {
   vertical-align: middle !important;
   line-height: normal !important;
   font-size: 16px !important;
-  color: inherit !important;
-  
-  /* Prevent pointer events on the container itself */
-  pointer-events: auto !important;
+  color: #222 !important;
 }
 
 /* Hidden state for modal */
 .club-anketa-modal[style*="display: none"],
-.club-anketa-modal[style*="display:none"] {
+.club-anketa-modal[style*="display:none"],
+.club-anketa-modal.hidden {
   display: none !important;
 }
 
@@ -447,6 +445,7 @@ body.club-anketa-modal-open {
   width: 100% !important;
   height: 100% !important;
   background: rgba(0, 0, 0, 0.6) !important;
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   z-index: 1 !important;
   
@@ -468,7 +467,7 @@ body.club-anketa-modal-open {
   max-width: 420px !important;
   max-height: 90vh !important;
   overflow-y: auto !important;
-  animation: modalSlideIn 0.25s ease-out;
+  animation: modalSlideIn 0.25s ease-out !important;
   
   /* CSS Resets - Prevent theme inheritance */
   border: none !important;
@@ -511,7 +510,7 @@ body.club-anketa-modal-open {
   line-height: 1 !important;
   cursor: pointer !important;
   color: #666 !important;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
@@ -594,8 +593,8 @@ body.club-anketa-modal-open {
   font-family: var(--anketa-font-stack);
   color: #222 !important;
   background: #fafafa !important;
-  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
-  caret-color: #111;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s !important;
+  caret-color: #111 !important;
   margin: 0 !important;
   padding: 0 !important;
 }
