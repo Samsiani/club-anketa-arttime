@@ -403,6 +403,7 @@ body.club-anketa-modal-open {
 
 /* Modal container - MAXIMUM SPECIFICITY OVERRIDE */
 /* Using ID selector for highest priority to break out of theme containers */
+/* NOTE: Display property is controlled by .active/.not(.active) rules below */
 #club-anketa-otp-modal {
   position: fixed !important;
   top: 0 !important;
@@ -410,7 +411,6 @@ body.club-anketa-modal-open {
   width: 100vw !important;
   height: 100vh !important;
   z-index: 2147483647 !important; /* Max Z-Index */
-  display: flex !important;
   justify-content: center !important;
   align-items: center !important;
   background: transparent !important;
@@ -434,14 +434,23 @@ body.club-anketa-modal-open {
   bottom: auto !important;
 }
 
-/* Hidden state for modal - ID selector */
-#club-anketa-otp-modal[style*="display: none"],
-#club-anketa-otp-modal[style*="display:none"],
-#club-anketa-otp-modal.hidden {
+/* Hidden state for modal - Default hidden via class or absence of .active */
+#club-anketa-otp-modal:not(.active) {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Active state for modal - Forces visibility when .active class is present */
+/* CRITICAL: This class-based toggle allows JS to control visibility reliably */
+#club-anketa-otp-modal.active {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Modal container - Class-based for backup (lower specificity) */
+/* NOTE: Display property is controlled by .active/.not(.active) rules below */
 .club-anketa-modal {
   /* Positioning: Fixed to viewport, covers entire screen */
   position: fixed !important;
@@ -455,8 +464,7 @@ body.club-anketa-modal-open {
   /* High z-index to float above all theme elements */
   z-index: 2147483647 !important;
   
-  /* Centering: Flexbox to center the modal box */
-  display: flex !important;
+  /* Centering: Flexbox properties (display is set by .active rule) */
   align-items: center !important;
   justify-content: center !important;
   
@@ -482,11 +490,18 @@ body.club-anketa-modal-open {
   color: #222 !important;
 }
 
-/* Hidden state for modal */
-.club-anketa-modal[style*="display: none"],
-.club-anketa-modal[style*="display:none"],
-.club-anketa-modal.hidden {
+/* Hidden state for modal - Default hidden via class or absence of .active */
+.club-anketa-modal:not(.active) {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Active state for modal - Forces visibility when .active class is present */
+.club-anketa-modal.active {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Modal overlay - Semi-transparent background with inset: 0 */
