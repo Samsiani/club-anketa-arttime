@@ -429,8 +429,9 @@ class Club_Anketa_Registration {
     public function account_sms_consent() {
         $user_id = get_current_user_id();
         $current_consent = get_user_meta($user_id, '_sms_consent', true);
+        $current_call_consent = get_user_meta($user_id, '_call_consent', true);
         
-        $this->render_sms_consent_fields('account', $current_consent);
+        $this->render_sms_consent_fields('account', $current_consent, $current_call_consent);
     }
 
     /**
@@ -474,12 +475,21 @@ class Club_Anketa_Registration {
         }
 
         update_user_meta($user_id, '_sms_consent', $new_consent);
+
+        // Handle Call Consent
+        if (isset($_POST['anketa_call_consent'])) {
+            $call_consent = sanitize_text_field(wp_unslash($_POST['anketa_call_consent']));
+            if ($call_consent !== 'yes' && $call_consent !== 'no') {
+                $call_consent = 'yes';
+            }
+            update_user_meta($user_id, '_call_consent', $call_consent);
+        }
     }
 
     /**
-     * Render SMS consent fields
+     * Render SMS and Call consent fields
      */
-    private function render_sms_consent_fields($context = 'registration', $current_value = 'yes') {
+    private function render_sms_consent_fields($context = 'registration', $current_value = 'yes', $current_call_value = 'yes') {
         $field_id = 'anketa_sms_consent_' . $context;
         ?>
         <div class="club-anketa-sms-consent" data-context="<?php echo esc_attr($context); ?>">
@@ -492,6 +502,19 @@ class Club_Anketa_Registration {
                     </label>
                     <label>
                         <input type="radio" name="anketa_sms_consent" value="no" <?php checked($current_value, 'no'); ?> class="sms-consent-radio" />
+                        <?php esc_html_e('არა', 'club-anketa'); ?>
+                    </label>
+                </div>
+            </div>
+            <div class="row">
+                <span class="label"><?php esc_html_e('თანხმობა სატელეფონო ზარზე', 'club-anketa'); ?></span>
+                <div class="field sms-consent-options">
+                    <label style="margin-right:12px;">
+                        <input type="radio" name="anketa_call_consent" value="yes" <?php checked($current_call_value, 'yes'); ?> class="call-consent-radio" />
+                        <?php esc_html_e('დიახ', 'club-anketa'); ?>
+                    </label>
+                    <label>
+                        <input type="radio" name="anketa_call_consent" value="no" <?php checked($current_call_value, 'no'); ?> class="call-consent-radio" />
                         <?php esc_html_e('არა', 'club-anketa'); ?>
                     </label>
                 </div>
@@ -725,6 +748,8 @@ class Club_Anketa_Registration {
             'anketa_shop'               => 'text',
             // SMS consent radio (default yes)
             'anketa_sms_consent'        => 'text',
+            // Call consent radio (default yes)
+            'anketa_call_consent'       => 'text',
         ];
 
         $data = [];
@@ -778,6 +803,12 @@ class Club_Anketa_Registration {
             $sms_consent = 'yes';
         }
 
+        // Default Call consent to 'yes' if not provided
+        $call_consent = strtolower($data['anketa_call_consent']);
+        if ($call_consent !== 'yes' && $call_consent !== 'no') {
+            $call_consent = 'yes';
+        }
+
         // If SMS consent is "yes", require OTP verification
         if ($sms_consent === 'yes') {
             if (!$this->is_phone_verified($local_digits)) {
@@ -817,6 +848,8 @@ class Club_Anketa_Registration {
             '_anketa_shop'                => $data['anketa_shop'],
             // SMS consent
             '_sms_consent'                => $sms_consent,
+            // Call consent
+            '_call_consent'               => $call_consent,
             // Store the verified phone number
             '_verified_phone_number'      => $sms_consent === 'yes' ? $local_digits : '',
         ];
@@ -852,12 +885,24 @@ class Club_Anketa_Registration {
 
     public function add_user_columns($columns) {
         $columns['club_anketa_sms'] = __('SMS accept', 'club-anketa');
+        $columns['club_anketa_call'] = __('Call accept', 'club-anketa');
         return $columns;
     }
 
     public function render_user_columns($output, $column_name, $user_id) {
         if ($column_name === 'club_anketa_sms') {
             $val = get_user_meta((int)$user_id, '_sms_consent', true);
+            $val = is_string($val) ? strtolower($val) : '';
+            if ($val === 'yes') {
+                return '<span style="color:#2e7d32;font-weight:600;">' . esc_html__('Yes', 'club-anketa') . '</span>';
+            }
+            if ($val === 'no') {
+                return '<span style="color:#c62828;font-weight:600;">' . esc_html__('No', 'club-anketa') . '</span>';
+            }
+            return '<span style="color:#616161;">' . esc_html__('(blank)', 'club-anketa') . '</span>';
+        }
+        if ($column_name === 'club_anketa_call') {
+            $val = get_user_meta((int)$user_id, '_call_consent', true);
             $val = is_string($val) ? strtolower($val) : '';
             if ($val === 'yes') {
                 return '<span style="color:#2e7d32;font-weight:600;">' . esc_html__('Yes', 'club-anketa') . '</span>';
@@ -893,6 +938,11 @@ class Club_Anketa_Registration {
         $sms_old = isset($old['anketa_sms_consent']) ? strtolower($old['anketa_sms_consent']) : 'yes';
         if ($sms_old !== 'yes' && $sms_old !== 'no') {
             $sms_old = 'yes';
+        }
+
+        $call_old = isset($old['anketa_call_consent']) ? strtolower($old['anketa_call_consent']) : 'yes';
+        if ($call_old !== 'yes' && $call_old !== 'no') {
+            $call_old = 'yes';
         }
 
         ob_start();
@@ -1036,6 +1086,21 @@ HTML;
                         </label>
                     </div>
                     <input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />
+                </div>
+
+                <!-- Call consent -->
+                <div class="row club-anketa-sms-consent" data-context="registration">
+                    <span class="label"><?php esc_html_e('თანხმობა სატელეფონო ზარზე', 'club-anketa'); ?></span>
+                    <div class="field sms-consent-options">
+                        <label style="margin-right:12px;">
+                            <input type="radio" name="anketa_call_consent" value="yes" <?php checked($call_old, 'yes'); ?> class="call-consent-radio" />
+                            <?php esc_html_e('დიახ', 'club-anketa'); ?>
+                        </label>
+                        <label>
+                            <input type="radio" name="anketa_call_consent" value="no" <?php checked($call_old, 'no'); ?> class="call-consent-radio" />
+                            <?php esc_html_e('არა', 'club-anketa'); ?>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="row">
