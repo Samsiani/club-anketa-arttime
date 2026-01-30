@@ -239,7 +239,8 @@
 
     /**
      * Update submit button enabled/disabled states based on verification
-     * Applies to: Registration form, Checkout, My Account Edit Address/Details
+     * Applies to: Checkout, My Account Edit Address/Details, WooCommerce Registration
+     * NOTE: Anketa form (.club-anketa-form) does NOT require verification - submission is allowed without it
      */
     function updateSubmitButtonStates() {
         // Find all forms with phone verification (including edit-address form and registration)
@@ -256,12 +257,16 @@
             var phoneValid = currentPhone.length === 9;
             var phoneVerified = isPhoneVerified(currentPhone);
 
-            // Check if phone field is required (registration form always requires verification)
-            var isRegistrationForm = $form.hasClass('club-anketa-form');
+            // Check if phone field verification is required
+            // Anketa form (.club-anketa-form) does NOT require verification
+            var isAnketaForm = $form.hasClass('club-anketa-form');
             var isCheckout = $form.hasClass('checkout');
             var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
             var isWcRegistration = $form.hasClass('woocommerce-form-register') || $form.hasClass('register');
-            var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0;
+            
+            // Only Checkout, Account, and WooCommerce Registration forms require verification
+            // Anketa form is explicitly excluded from verification requirement
+            var requiresVerification = !isAnketaForm && (isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0);
 
             if (requiresVerification && phoneValid && !phoneVerified) {
                 // Phone is filled but not verified - disable submit
@@ -373,6 +378,7 @@
     /**
      * Handle form submission
      * Blocks submission if phone is filled but not verified
+     * NOTE: Anketa form (.club-anketa-form) is allowed to submit without verification
      */
     function handleFormSubmit(e, $form) {
         var $phoneInput = $form.find('#anketa_phone_local, .phone-local, #billing_phone, #reg_billing_phone, #account_phone').first();
@@ -384,11 +390,15 @@
         var currentPhone = normalizePhone($phoneInput.val());
         
         // Check if phone is filled but not verified
-        var isRegistrationForm = $form.hasClass('club-anketa-form');
+        // Anketa form (.club-anketa-form) does NOT require verification - allow submission
+        var isAnketaForm = $form.hasClass('club-anketa-form');
         var isCheckout = $form.hasClass('checkout');
         var isAccountForm = $form.hasClass('woocommerce-EditAccountForm') || $form.hasClass('edit-address');
         var isWcRegistration = $form.hasClass('woocommerce-form-register') || $form.hasClass('register');
-        var requiresVerification = isRegistrationForm || isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0;
+        
+        // Only Checkout, Account, and WooCommerce Registration forms require verification
+        // Anketa form is explicitly excluded from verification requirement
+        var requiresVerification = !isAnketaForm && (isCheckout || isAccountForm || isWcRegistration || $form.find('.phone-verify-group').length > 0);
 
         if (requiresVerification && currentPhone.length === 9 && !isPhoneVerified(currentPhone)) {
             e.preventDefault();

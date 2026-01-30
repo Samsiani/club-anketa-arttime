@@ -809,15 +809,14 @@ class Club_Anketa_Registration {
             $call_consent = 'yes';
         }
 
-        // If SMS consent is "yes", require OTP verification
-        if ($sms_consent === 'yes') {
-            if (!$this->is_phone_verified($local_digits)) {
-                self::$errors[] = __('Phone verification is required for SMS consent. Please verify your phone number.', 'club-anketa');
-                return;
-            }
-            // Clean up verification token after successful use
-            delete_transient('otp_verified_' . $local_digits);
-        }
+        // Phone verification is optional for Anketa form - allow submission without OTP
+        // The verify button is still visible, but skipping verification does not block submission
+        // Note: WooCommerce Checkout and Registration still require verification (handled separately)
+        // Check if user verified their phone before we potentially clean up the transient
+        $phone_was_verified = $this->is_phone_verified($local_digits);
+        
+        // If user verified their phone, clean up the verification token after storing the status
+        // (cleanup happens after meta is saved)
 
         // Create user quickly
         $password = wp_generate_password(18, true, true);
@@ -850,13 +849,18 @@ class Club_Anketa_Registration {
             '_sms_consent'                => $sms_consent,
             // Call consent
             '_call_consent'               => $call_consent,
-            // Store the verified phone number
-            '_verified_phone_number'      => $sms_consent === 'yes' ? $local_digits : '',
+            // Store the verified phone number only if actually verified via OTP
+            '_verified_phone_number'      => $phone_was_verified ? $local_digits : '',
         ];
         foreach ($meta_map as $meta_key => $meta_value) {
             if ($meta_value !== '') {
                 update_user_meta($user_id, $meta_key, $meta_value);
             }
+        }
+
+        // Clean up verification token after successful use (if phone was verified)
+        if ($phone_was_verified) {
+            delete_transient('otp_verified_' . $local_digits);
         }
 
         // Redirect to print page
