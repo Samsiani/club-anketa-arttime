@@ -285,7 +285,7 @@
 .wc-phone-verify-group input[type="text"] {
   flex: 1 1 auto !important;   /* Allow growing/shrinking */
   width: auto !important;      /* Override 100% width from themes */
-  min-width: 0 !important;     /* CSS Grid/Flex fix for shrinking */
+  min-width: 120px !important; /* Prevent collapse to zero width */
   max-width: 100% !important;
   margin: 0 !important;
   display: block !important;
