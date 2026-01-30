@@ -152,20 +152,42 @@ class Utils {
     /**
      * Get client IP address
      *
+     * Note: For security-critical rate limiting, we prioritize REMOTE_ADDR 
+     * over proxy headers which can be spoofed. Proxy headers are only used
+     * as a fallback when REMOTE_ADDR is not available.
+     *
      * @return string Client IP address
      */
     public static function get_client_ip() {
-        $ip = '';
+        // Prefer REMOTE_ADDR for security (cannot be easily spoofed)
+        if (!empty($_SERVER['REMOTE_ADDR'])) {
+            $ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+            // Validate it's a proper IP address
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+        
+        // Fallback to proxy headers only if REMOTE_ADDR is unavailable
+        // Note: These can be spoofed, so use with caution
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            // Take only the first IP if multiple are present
+            $forwarded = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
+            $ips = explode(',', $forwarded);
+            $ip = trim($ips[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
         
         if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
             $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_CLIENT_IP']));
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip = sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']));
-        } elseif (!empty($_SERVER['REMOTE_ADDR'])) {
-            $ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
         }
         
-        return $ip;
+        return '0.0.0.0'; // Fallback if no valid IP found
     }
 
     /**
@@ -218,7 +240,8 @@ class Utils {
      * @return string 6-digit OTP code
      */
     public static function generate_otp() {
-        return str_pad(wp_rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        // Use random_int for cryptographically secure OTP generation
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     }
 
     /**
@@ -315,5 +338,35 @@ class Utils {
         
         // Otherwise attempt to create paragraphs
         return wpautop($html);
+    }
+
+    /**
+     * Get default rules text for Anketa
+     * 
+     * This centralized method ensures consistency across all templates.
+     *
+     * @return string Default rules HTML
+     */
+    public static function get_default_rules_text() {
+        $rules = '<p><strong>Arttime-ის კლუბის წევრები სარგებლობენ შემდეგი უპირატესობით:</strong></p>
+<ul>
+<li>ბარათზე 500-5000 ლარამდე დაგროვების შემთხვევაში ფასდაკლება 5%</li>
+<li>ბარათზე 5001-10000 ლარამდე დაგროვების შემთხვევაში ფასდაკლება 10%;</li>
+<li>ბარათზე 10 000 ლარზე მეტის დაგროვების შემთხვევაში ფასდაკლება 15%.</li>
+</ul>
+<p>&nbsp;</p>
+<p><strong>გთხოვთ გაითვალისწინოთ:</strong></p>
+<ol>
+<li>ართთაიმის კლუბის ბარათით გათვალისწინებული ფასდაკლება არ მოქმედებს ფასდაკლებელ პროდუქციაზე;</li>
+<li>ფასდაკლებული პროდუქციის შეძენის შემთხვევაში ბარათზე მხოლოდ ქულები დაგერიცხებათ;</li>
+<li>ფასდაკლება მოქმედებს, მაგრამ ქულები არ გერიცხებათ პროდუქციის სასაჩუქრე ვაუჩერით შემენისას</li>
+<li>სასაჩუქრე ვაუჩერის შეძენისას ფასდაკლება არ მოქმედებს, მაგრამ ქულები გროვდება:</li>
+<li>დაგროვილი ქულები ბარათზე აისახება 2 სამუშაო დღის ვადაში;</li>
+<li>გაითვალისწინეთ, წინამდებარე წესებით დადგენილი პირობები შეიძლება შეიცვალოს შპს „ართთაიმის" მიერ, რომელიც სავალდებულო იქნება ბარათების პროექტში ჩართული მომხმარებლებისთვის.</li>
+<li>ხელმოწერით ვადასტურებ ჩემი პირადი მონაცემების სიზუსტეს და ბარათის მიღებას</li>
+</ol>';
+
+        // Allow filtering of default rules
+        return apply_filters('club_anketa_rules_text', $rules);
     }
 }

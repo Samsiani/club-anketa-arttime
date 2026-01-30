@@ -97,14 +97,21 @@ class SmsProvider {
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
 
-        // Check response code
-        if (isset($data['code'])) {
-            $code = $data['code'];
+        // Validate response format to prevent potential injection from malformed API responses
+        if (!is_array($data)) {
+            $data = [];
+        }
+
+        // Check response code - only accept alphanumeric codes
+        if (isset($data['code']) && is_string($data['code'])) {
+            $code = preg_replace('/[^a-zA-Z0-9]/', '', $data['code']);
             
             if (strpos($code, '0000') === 0) {
+                // Sanitize message_id to prevent any malicious content
+                $message_id = isset($data['message_id']) ? sanitize_text_field($data['message_id']) : '';
                 return [
                     'success'    => true,
-                    'message_id' => isset($data['message_id']) ? $data['message_id'] : '',
+                    'message_id' => $message_id,
                 ];
             }
 
@@ -120,8 +127,8 @@ class SmsProvider {
             ];
         }
 
-        // Fallback: check if response starts with 0000
-        if (strpos($body, '0000') === 0) {
+        // Fallback: check if response starts with 0000 (plain text response)
+        if (is_string($body) && strpos($body, '0000') === 0) {
             return [
                 'success'    => true,
                 'message_id' => trim(str_replace('0000-', '', $body)),

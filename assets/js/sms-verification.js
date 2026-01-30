@@ -62,6 +62,11 @@
     var ajaxUrl = clubAnketaSms.ajaxUrl;
     var nonce = clubAnketaSms.nonce;
 
+    // Configuration constants
+    // WOODMART_REINIT_DELAY: Delay in ms after WooCommerce AJAX updates
+    // This ensures our script runs AFTER WoodMart's own scripts modify the DOM
+    var WOODMART_REINIT_DELAY = 500;
+
     // State variables
     var verifiedPhone = clubAnketaSms.verifiedPhone || '';
     var sessionVerifiedPhone = ''; // Phone verified in current session (not yet saved)
@@ -97,13 +102,13 @@
 
         // Re-initialize on WooCommerce AJAX events (for checkout updates)
         // CRITICAL: Ensures modal and verify buttons remain valid after WooCommerce AJAX refreshes
-        // WOODMART FIX: Added 500ms delay to ensure our script runs AFTER WoodMart's scripts
+        // WOODMART FIX: Uses WOODMART_REINIT_DELAY to run AFTER WoodMart's scripts
         $(document.body).on('updated_checkout', function() {
             debugLog('updated_checkout event fired - WooCommerce AJAX update detected');
             
             // WoodMart Fix: Delay re-initialization to run AFTER WoodMart's own scripts
             setTimeout(function() {
-                debugLog('Running delayed re-initialization (500ms after updated_checkout)');
+                debugLog('Running delayed re-initialization (' + WOODMART_REINIT_DELAY + 'ms after updated_checkout)');
                 // Re-inject modal if it was removed or moved during AJAX update
                 injectModalHtml();
                 // Re-inject verify buttons for any new/recreated phone fields
@@ -111,7 +116,7 @@
                 initializePhoneFields();
                 updateSubmitButtonStates();
                 debugLog('Re-initialization complete after updated_checkout');
-            }, 500);
+            }, WOODMART_REINIT_DELAY);
         });
     }
 
@@ -980,7 +985,7 @@
      * This function implements the "Jailbreak" logic:
      * 1. FORCE modal to be a direct child of <body> (escape restrictive containers)
      * 2. Apply aggressive inline styles to override ANY theme CSS
-     * 3. Use maximum z-index (2147483647) to appear above all theme elements
+     * 3. Use high z-index (999999) to appear above all theme elements
      */
     function openModal(phone) {
         debugLog('======================================');
@@ -1052,7 +1057,7 @@
             'left': '0',
             'width': '100vw',
             'height': '100vh',
-            'z-index': '2147483647', // Maximum 32-bit integer - highest valid CSS z-index
+            'z-index': '999999', // High z-index, safe across all browsers
             'background-color': 'transparent', // Overlay div handles the dark background
             'pointer-events': 'auto',
             'transform': 'none', // Prevent any transform that could create stacking context issues

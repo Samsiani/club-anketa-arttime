@@ -131,7 +131,8 @@ class Settings {
             __('SMS API Password', 'club-anketa'),
             function () {
                 $val = esc_attr(get_option('club_anketa_sms_password', ''));
-                echo '<input type="password" name="club_anketa_sms_password" value="' . $val . '" class="regular-text" placeholder="Your API password" />';
+                echo '<input type="password" name="club_anketa_sms_password" value="' . $val . '" class="regular-text" placeholder="Your API password" autocomplete="new-password" />';
+                echo '<p class="description">' . esc_html__('Keep this secure. Consider using wp-config.php constants for sensitive credentials.', 'club-anketa') . '</p>';
             },
             'club_anketa_settings',
             'club_anketa_sms_api'

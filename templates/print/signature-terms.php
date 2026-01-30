@@ -37,23 +37,8 @@ if ($terms_type === 'sms') {
 }
 $terms_url = (string) get_option('club_anketa_terms_url', '');
 
-$fallback_rules = '<p><strong>Arttime-ის კლუბის წევრები სარგებლობენ შემდეგი უპირატესობით:</strong></p>
-<ul>
-<li>ბარათზე 500-5000 ლარამდე დაგროვების შემთხვევაში ფასდაკლება 5%</li>
-<li>ბარათზე 5001-10000 ლარამდე დაგროვების შემთხვევაში ფასდაკლება 10%;</li>
-<li>ბარათზე 10 000 ლარზე მეტის დაგროვების შემთხვევაში ფასდაკლება 15%.</li>
-</ul>
-<p>&nbsp;</p>
-<p><strong>გთხოვთ გაითვალისწინოთ:</strong></p>
-<ol>
-<li>ართთაიმის კლუბის ბარათით გათვალისწინებული ფასდაკლება არ მოქმედებს ფასდაკლებელ პროდუქციაზე;</li>
-<li>ფასდაკლებული პროდუქციის შეძენის შემთხვევაში ბარათზე მხოლოდ ქულები დაგერიცხებათ;</li>
-<li>ფასდაკლება მოქმედებს, მაგრამ ქულები არ გერიცხებათ პროდუქციის სასაჩუქრე ვაუჩერით შემენისას</li>
-<li>სასაჩუქრე ვაუჩერის შეძენისას ფასდაკლება არ მოქმედებს, მაგრამ ქულები გროვდება:</li>
-<li>დაგროვილი ქულები ბარათზე აისახება 2 სამუშაო დღის ვადაში;</li>
-<li>გაითვალისწინეთ, წინამდებარე წესებით დადგენილი პირობები შეიძლება შეიცვალოს შპს „ართთაიმის" მიერ, რომელიც სავალდებულო იქნება ბარათების პროექტში ჩართული მომხმარებლებისთვის.</li>
-<li>ხელმოწერით ვადასტურებ ჩემი პირადი მონაცემების სიზუსტეს და ბარათის მიღებას</li>
-</ol>';
+// Get fallback rules from centralized Utils method
+$fallback_rules = Utils::get_default_rules_text();
 
 // Prepare rich content (auto-paragraph if only inline spans/bolds).
 $terms_html_prepared = '';
@@ -105,7 +90,7 @@ if (trim($terms_html_raw) !== '') {
         <p class="description" style="margin-top:8px;color:#555;"><?php echo esc_html__('Loaded from configured URL (no custom editor content provided).', 'club-anketa'); ?></p>
     <?php else: ?>
         <div class="rules-inner">
-            <?php echo wp_kses_post(apply_filters('club_anketa_rules_text', $fallback_rules)); ?>
+            <?php echo wp_kses_post($fallback_rules); ?>
         </div>
     <?php endif; ?>
 
