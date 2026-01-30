@@ -26,8 +26,12 @@
     'use strict';
 
     // ========== DEBUG MODE ==========
-    // Set to true to enable extensive console logging for debugging
-    var DEBUG_MODE = true;
+    // Debug mode can be enabled via:
+    // 1. Setting clubAnketaSms.debug = true in PHP/localization
+    // 2. Setting window.CLUB_ANKETA_DEBUG = true before this script loads
+    // Default is false in production; enable for troubleshooting WoodMart issues
+    var DEBUG_MODE = (typeof clubAnketaSms !== 'undefined' && clubAnketaSms.debug === true) ||
+                     (typeof window.CLUB_ANKETA_DEBUG !== 'undefined' && window.CLUB_ANKETA_DEBUG === true);
     
     function debugLog(message, data) {
         if (DEBUG_MODE) {
@@ -90,6 +94,11 @@
             debugLog('updated_checkout event fired - WooCommerce AJAX update detected');
             
             // WoodMart Fix: Delay re-initialization to run AFTER WoodMart's own scripts
+            // The 500ms delay is based on testing with WoodMart theme which runs its own
+            // JavaScript after the standard WooCommerce updated_checkout event.
+            // WoodMart's scripts can overwrite our DOM changes if we run immediately.
+            // 500ms provides sufficient margin for WoodMart's scripts to complete.
+            // If issues persist, try increasing to 750ms or 1000ms.
             setTimeout(function() {
                 debugLog('Running delayed re-initialization (500ms after updated_checkout)');
                 // Re-inject modal if it was removed or moved during AJAX update
@@ -941,8 +950,13 @@
     /**
      * Open OTP modal
      * CRITICAL FIX: Ensures modal exists in DOM before attempting to show it
-     * Uses class-based visibility toggle (.active) for reliable display control
-     * WOODMART FIX: Forces inline styles as fallback to overcome theme z-index conflicts
+     * 
+     * Visibility control uses a DUAL approach for maximum compatibility:
+     * 1. CSS class (.active) - Provides visibility via CSS rules with !important
+     * 2. Inline styles - FALLBACK for WoodMart and other themes with aggressive CSS
+     * 
+     * The inline styles ensure the modal appears even when theme CSS has higher
+     * specificity than our !important rules (e.g., WoodMart sticky headers).
      */
     function openModal(phone) {
         debugLog('openModal() called with phone:', phone);
@@ -1016,21 +1030,16 @@
 
     /**
      * Close OTP modal
-     * Uses class-based toggle (.active) for reliable visibility control
-     * Also clears forced inline styles
+     * Removes both the .active class and any forced inline styles
+     * to fully reset the modal to its hidden CSS state
      */
     function closeModal() {
         debugLog('closeModal() called');
         var $modal = $('#club-anketa-otp-modal');
         // Remove .active class to hide modal via CSS rules
         $modal.removeClass('active');
-        // Also clear the forced inline styles
-        $modal.css({
-            'display': '',
-            'visibility': '',
-            'opacity': '',
-            'z-index': ''
-        });
+        // Remove all inline styles added by openModal() to allow CSS rules to take over
+        $modal.removeAttr('style');
         $('body').removeClass('club-anketa-modal-open');
         clearCountdown();
         debugLog('closeModal() complete');
@@ -1087,85 +1096,109 @@
     // Initialize on document ready
     $(document).ready(init);
     
-    // ========== EXPOSED TEST FUNCTIONS ==========
-    // These functions are exposed globally for debugging purposes.
-    // Users can call them from the browser console to test modal behavior
-    // independently of event handlers.
+    // ========== EXPOSED DEBUG FUNCTIONS ==========
+    // These functions are exposed globally for debugging WoodMart compatibility issues.
+    // They are namespaced under window.clubAnketaSmsDebug and only available when
+    // DEBUG_MODE is enabled (via clubAnketaSms.debug = true or window.CLUB_ANKETA_DEBUG = true).
+    // 
+    // To enable debugging, add this before the script loads:
+    //   window.CLUB_ANKETA_DEBUG = true;
+    // 
+    // Or in PHP when localizing the script:
+    //   'debug' => WP_DEBUG
     
-    /**
-     * Test function to open modal directly from console
-     * Usage: testOpenModal('555123456')
-     * This separates UI logic from event logic for debugging
-     */
-    window.testOpenModal = function(phone) {
-        console.log('[Club Anketa SMS TEST] testOpenModal called with phone:', phone);
-        if (!phone || phone.length < 9) {
-            console.warn('[Club Anketa SMS TEST] Please provide a 9-digit phone number');
-            console.log('[Club Anketa SMS TEST] Usage: testOpenModal("555123456")');
-            return false;
-        }
-        
-        // Ensure modal HTML exists
-        injectModalHtml();
-        
-        // Open the modal
-        openModal(phone);
-        
-        console.log('[Club Anketa SMS TEST] Modal should now be visible');
-        return true;
-    };
-    
-    /**
-     * Test function to close modal from console
-     * Usage: testCloseModal()
-     */
-    window.testCloseModal = function() {
-        console.log('[Club Anketa SMS TEST] testCloseModal called');
-        closeModal();
-        return true;
-    };
-    
-    /**
-     * Test function to check current state
-     * Usage: testCheckState()
-     */
-    window.testCheckState = function() {
-        var $modal = $('#club-anketa-otp-modal');
-        var $billingPhone = $('#billing_phone');
-        var $verifyBtns = $('.phone-verify-btn');
-        
-        console.log('========== Club Anketa SMS State Check ==========');
-        console.log('Modal exists:', $modal.length > 0);
-        console.log('Modal parent is body:', $modal.parent().is('body'));
-        console.log('Modal has .active class:', $modal.hasClass('active'));
-        console.log('Modal computed display:', $modal.css('display'));
-        console.log('Modal computed visibility:', $modal.css('visibility'));
-        console.log('Modal computed z-index:', $modal.css('z-index'));
-        console.log('');
-        console.log('#billing_phone exists:', $billingPhone.length > 0);
-        console.log('#billing_phone value:', $billingPhone.val());
-        console.log('');
-        console.log('Verify buttons found:', $verifyBtns.length);
-        $verifyBtns.each(function(i) {
-            console.log('  Button ' + i + ' visible:', $(this).is(':visible'));
-        });
-        console.log('');
-        console.log('Session verified phone:', sessionVerifiedPhone);
-        console.log('Stored verified phone:', verifiedPhone);
-        console.log('=================================================');
-        
-        return {
-            modalExists: $modal.length > 0,
-            modalInBody: $modal.parent().is('body'),
-            modalActive: $modal.hasClass('active'),
-            billingPhoneExists: $billingPhone.length > 0,
-            billingPhoneValue: $billingPhone.val(),
-            verifyButtonCount: $verifyBtns.length,
-            sessionVerifiedPhone: sessionVerifiedPhone,
-            storedVerifiedPhone: verifiedPhone
+    if (DEBUG_MODE) {
+        window.clubAnketaSmsDebug = {
+            /**
+             * Test function to open modal directly from console
+             * Usage: clubAnketaSmsDebug.openModal('555123456')
+             * This separates UI logic from event logic for debugging
+             */
+            openModal: function(phone) {
+                console.log('[Club Anketa SMS DEBUG] openModal called with phone:', phone);
+                
+                // Normalize phone using the same function as production code
+                var normalizedPhone = normalizePhone(phone);
+                
+                // Use the same validation as production code
+                if (!normalizedPhone || normalizedPhone.length !== 9) {
+                    console.warn('[Club Anketa SMS DEBUG] Invalid phone. Must be exactly 9 digits after normalization.');
+                    console.log('[Club Anketa SMS DEBUG] Usage: clubAnketaSmsDebug.openModal("555123456")');
+                    console.log('[Club Anketa SMS DEBUG] Received:', phone, '-> Normalized:', normalizedPhone);
+                    return false;
+                }
+                
+                // Ensure modal HTML exists
+                injectModalHtml();
+                
+                // Open the modal with normalized phone
+                openModal(normalizedPhone);
+                
+                console.log('[Club Anketa SMS DEBUG] Modal should now be visible');
+                return true;
+            },
+            
+            /**
+             * Test function to close modal from console
+             * Usage: clubAnketaSmsDebug.closeModal()
+             */
+            closeModal: function() {
+                console.log('[Club Anketa SMS DEBUG] closeModal called');
+                closeModal();
+                return true;
+            },
+            
+            /**
+             * Test function to check current state
+             * Usage: clubAnketaSmsDebug.checkState()
+             */
+            checkState: function() {
+                var $modal = $('#club-anketa-otp-modal');
+                var $billingPhone = $('#billing_phone');
+                var $verifyBtns = $('.phone-verify-btn');
+                
+                console.log('========== Club Anketa SMS State Check ==========');
+                console.log('DEBUG_MODE:', DEBUG_MODE);
+                console.log('Modal exists:', $modal.length > 0);
+                console.log('Modal parent is body:', $modal.parent().is('body'));
+                console.log('Modal has .active class:', $modal.hasClass('active'));
+                console.log('Modal computed display:', $modal.css('display'));
+                console.log('Modal computed visibility:', $modal.css('visibility'));
+                console.log('Modal computed z-index:', $modal.css('z-index'));
+                console.log('');
+                console.log('#billing_phone exists:', $billingPhone.length > 0);
+                console.log('#billing_phone value:', $billingPhone.val());
+                console.log('');
+                console.log('Verify buttons found:', $verifyBtns.length);
+                $verifyBtns.each(function(i) {
+                    console.log('  Button ' + i + ' visible:', $(this).is(':visible'));
+                });
+                console.log('');
+                console.log('Session verified phone:', sessionVerifiedPhone);
+                console.log('Stored verified phone:', verifiedPhone);
+                console.log('=================================================');
+                
+                return {
+                    debugMode: DEBUG_MODE,
+                    modalExists: $modal.length > 0,
+                    modalInBody: $modal.parent().is('body'),
+                    modalActive: $modal.hasClass('active'),
+                    billingPhoneExists: $billingPhone.length > 0,
+                    billingPhoneValue: $billingPhone.val(),
+                    verifyButtonCount: $verifyBtns.length,
+                    sessionVerifiedPhone: sessionVerifiedPhone,
+                    storedVerifiedPhone: verifiedPhone
+                };
+            }
         };
-    };
-    
-    debugLog('Test functions exposed: testOpenModal(), testCloseModal(), testCheckState()');
+        
+        // Also expose as shorter aliases for convenience during debugging
+        window.testOpenModal = window.clubAnketaSmsDebug.openModal;
+        window.testCloseModal = window.clubAnketaSmsDebug.closeModal;
+        window.testCheckState = window.clubAnketaSmsDebug.checkState;
+        
+        debugLog('Debug functions exposed: clubAnketaSmsDebug.openModal(), .closeModal(), .checkState()');
+        debugLog('Short aliases also available: testOpenModal(), testCloseModal(), testCheckState()');
+    }
 
 })(jQuery);
