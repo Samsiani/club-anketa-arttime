@@ -57,7 +57,8 @@ $boxed = function ($text, $boxes = 11) {
 };
 
 // Always send to our signature-terms page (it will decide editor vs URL)
-$terms_link = esc_url(add_query_arg('user_id', $user_id, home_url('/signature-terms/')));
+$sms_terms_link = esc_url(add_query_arg(['user_id' => $user_id, 'terms_type' => 'sms'], home_url('/signature-terms/')));
+$call_terms_link = esc_url(add_query_arg(['user_id' => $user_id, 'terms_type' => 'call'], home_url('/signature-terms/')));
 ?><!doctype html>
 <html <?php language_attributes(); ?>>
 <head>
@@ -69,7 +70,8 @@ $terms_link = esc_url(add_query_arg('user_id', $user_id, home_url('/signature-te
 <body>
     <div class="print-actions">
         <button onclick="window.print()"><?php echo esc_html__('Print Anketa', 'club-anketa'); ?></button>
-        <a class="button button-secondary print-terms-btn" href="<?php echo $terms_link; ?>"><?php echo esc_html__('Print Terms', 'club-anketa'); ?></a>
+        <a class="button button-secondary print-terms-btn" href="<?php echo $sms_terms_link; ?>"><?php echo esc_html__('Print SMS Terms', 'club-anketa'); ?></a>
+        <a class="button button-secondary print-terms-btn" href="<?php echo $call_terms_link; ?>"><?php echo esc_html__('Print Phone Call Terms', 'club-anketa'); ?></a>
     </div>
 
     <div class="page">

@@ -102,6 +102,18 @@ add_action('admin_init', function () {
         'default'           => '',
     ]);
 
+    register_setting('club_anketa_settings_group', 'club_anketa_sms_terms_html', [
+        'type'              => 'string',
+        'sanitize_callback' => 'club_anketa_sanitize_terms_html',
+        'default'           => '',
+    ]);
+
+    register_setting('club_anketa_settings_group', 'club_anketa_call_terms_html', [
+        'type'              => 'string',
+        'sanitize_callback' => 'club_anketa_sanitize_terms_html',
+        'default'           => '',
+    ]);
+
     // MS Group SMS API Settings
     register_setting('club_anketa_settings_group', 'club_anketa_sms_username', [
         'type'              => 'string',
@@ -213,6 +225,50 @@ add_action('admin_init', function () {
                 'club_anketa_terms_html',
                 [
                     'textarea_name' => 'club_anketa_terms_html',
+                    'media_buttons' => true,
+                    'textarea_rows' => 14,
+                    'teeny'         => false,
+                    'editor_height' => 320,
+                ]
+            );
+        },
+        'club_anketa_settings',
+        'club_anketa_main'
+    );
+
+    add_settings_field(
+        'club_anketa_sms_terms_html',
+        __('SMS Terms Content (rich HTML)', 'club-anketa'),
+        function () {
+            $val = get_option('club_anketa_sms_terms_html', '');
+            echo '<p class="description" style="margin-top:-6px;">' . esc_html__('Content for the Print SMS Terms button.', 'club-anketa') . '</p>';
+            wp_editor(
+                $val,
+                'club_anketa_sms_terms_html',
+                [
+                    'textarea_name' => 'club_anketa_sms_terms_html',
+                    'media_buttons' => true,
+                    'textarea_rows' => 14,
+                    'teeny'         => false,
+                    'editor_height' => 320,
+                ]
+            );
+        },
+        'club_anketa_settings',
+        'club_anketa_main'
+    );
+
+    add_settings_field(
+        'club_anketa_call_terms_html',
+        __('Phone Call Terms Content (rich HTML)', 'club-anketa'),
+        function () {
+            $val = get_option('club_anketa_call_terms_html', '');
+            echo '<p class="description" style="margin-top:-6px;">' . esc_html__('Content for the Print Phone Call Terms button.', 'club-anketa') . '</p>';
+            wp_editor(
+                $val,
+                'club_anketa_call_terms_html',
+                [
+                    'textarea_name' => 'club_anketa_call_terms_html',
                     'media_buttons' => true,
                     'textarea_rows' => 14,
                     'teeny'         => false,
