@@ -124,8 +124,8 @@
             }
             
             // Check in form-row siblings and children
+            var $formRow = $phoneInput.closest('.form-row, p');
             if ($existingBtnContainer.length === 0) {
-                var $formRow = $phoneInput.closest('.form-row, p');
                 $existingBtnContainer = $formRow.find('.phone-verify-container');
                 if ($existingBtnContainer.length === 0) {
                     $existingBtnContainer = $formRow.siblings('.phone-verify-container');
@@ -134,7 +134,6 @@
             
             // Check in form-row next elements
             if ($existingBtnContainer.length === 0) {
-                var $formRow = $phoneInput.closest('.form-row, p');
                 $existingBtnContainer = $formRow.nextAll('.phone-verify-container').first();
             }
             
@@ -392,9 +391,15 @@
                 
                 // CRITICAL FIX for WooCommerce Checkout: If input still not found via DOM traversal,
                 // explicitly check if #billing_phone exists on the page (Checkout page fallback)
+                // Only use this fallback if the button is within the checkout form to avoid
+                // incorrect associations with other forms on the page
                 if ($input.length === 0 && $('#billing_phone').length > 0) {
-                    // Assume this verify button belongs to the main billing phone on Checkout
-                    $input = $('#billing_phone');
+                    var $checkoutForm = $btn.closest('form.checkout, form.woocommerce-checkout');
+                    var $billingPhone = $('#billing_phone');
+                    // Only use billing_phone if button is in checkout form or billing_phone is in same form
+                    if ($checkoutForm.length > 0 || $billingPhone.closest('form').find($btn).length > 0) {
+                        $input = $billingPhone;
+                    }
                 }
                 
                 // Final fallback: find the closest phone field by traversing up to parent form
