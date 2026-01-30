@@ -136,6 +136,15 @@
                 $existingContainer = $formRow.nextAll('.phone-verify-container').first();
             }
             
+            // Fifth check: Look anywhere within the same form for a phone-verify-container
+            // that hasn't been associated with another input yet
+            if ($existingContainer.length === 0) {
+                var $form = $phoneInput.closest('form');
+                if ($form.length > 0) {
+                    $existingContainer = $form.find('.phone-verify-container').not('.phone-verify-group .phone-verify-container').first();
+                }
+            }
+            
             if ($existingContainer.length > 0) {
                 // PHP has appended the container; wrap input and move container into a phone-verify-group
                 // Create wrapper div
@@ -147,8 +156,10 @@
                 // Move input into the wrapper
                 $wrapper.append($phoneInput);
                 
-                // Move the container into the wrapper as well
-                $wrapper.append($existingContainer);
+                // Use detach() to properly move the element from its current position
+                // detach() removes the element from the DOM and returns it for re-insertion
+                var $detachedContainer = $existingContainer.detach();
+                $wrapper.append($detachedContainer);
             } else {
                 // No existing container from PHP, create everything from scratch
                 // Wrap the phone input in phone-verify-group container (Flexbox parent)
@@ -365,6 +376,35 @@
             var $btn = $(this);
             var $container = $btn.closest('.phone-verify-group, .phone-group');
             var $input = $container.find('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, input[type="tel"]').first();
+            
+            // Fallback for Checkout page if grouping failed or input not found
+            if ($input.length === 0) {
+                // Try to find the input based on the button's position in DOM
+                var $verifyContainer = $btn.closest('.phone-verify-container');
+                if ($verifyContainer.length > 0) {
+                    // Look for sibling input or nearby phone input
+                    $input = $verifyContainer.siblings('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone').first();
+                    if ($input.length === 0) {
+                        $input = $verifyContainer.prev('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone');
+                    }
+                }
+                
+                // Final fallback: find the closest phone field by traversing up to parent form
+                // This is more reliable than blindly selecting any phone field on the page
+                if ($input.length === 0) {
+                    var $form = $btn.closest('form');
+                    if ($form.length > 0) {
+                        // Try to find phone input within the same form
+                        $input = $form.find('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, .phone-local, input[type="tel"]').first();
+                    }
+                    
+                    // Ultimate fallback: search the entire page for known phone field selectors
+                    // This handles edge cases where the button may not be inside a form
+                    if ($input.length === 0) {
+                        $input = $('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').first();
+                    }
+                }
+            }
             
             var phone = normalizePhone($input.val());
             
