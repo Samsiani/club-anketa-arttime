@@ -1,0 +1,42 @@
+/**
+ * Admin CSS for Club Anketa Plugin
+ * Version: 3.0.0
+ */
+
+/* Settings page styling */
+.club-anketa-admin-wrap {
+    max-width: 1200px;
+}
+
+.club-anketa-admin-wrap h1 {
+    margin-bottom: 20px;
+}
+
+/* Editor sections */
+.club-anketa-admin-wrap .form-table th {
+    width: 200px;
+}
+
+.club-anketa-admin-wrap .form-table td {
+    vertical-align: top;
+}
+
+/* Description text */
+.club-anketa-admin-wrap .description {
+    color: #646970;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+/* SMS API fields */
+.club-anketa-admin-wrap input.regular-text {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Submit button */
+.club-anketa-admin-wrap .submit {
+    padding-top: 20px;
+    border-top: 1px solid #ddd;
+    margin-top: 20px;
+}
