@@ -92,6 +92,31 @@
             if ($phoneInput.length === 0 || $phoneInput.closest('.phone-verify-group').length > 0) {
                 return;
             }
+            
+            // Improved duplicate button check: Check if a verify button already exists 
+            // for this specific phone input (PHP may have rendered it server-side)
+            var $existingBtn = $phoneInput.siblings('.phone-verify-container').find('.phone-verify-btn');
+            if ($existingBtn.length === 0) {
+                $existingBtn = $phoneInput.parent().find('.phone-verify-btn');
+            }
+            if ($existingBtn.length === 0) {
+                $existingBtn = $phoneInput.closest('.form-row, p').find('.phone-verify-btn');
+            }
+            
+            // If a button already exists for this input, adapt to PHP structure instead of creating new
+            if ($existingBtn.length > 0) {
+                // PHP has already rendered the button - just ensure proper grouping
+                var $verifyContainer = $existingBtn.closest('.phone-verify-container');
+                if ($verifyContainer.length > 0) {
+                    // Wrap both input and container in a phone-verify-group
+                    var $wrapper = $('<div class="phone-verify-group wc-phone-verify-group"></div>');
+                    $phoneInput.before($wrapper);
+                    $wrapper.append($phoneInput);
+                    var $detachedContainer = $verifyContainer.detach();
+                    $wrapper.append($detachedContainer);
+                }
+                return;
+            }
 
             // Check if PHP has appended a phone-verify-container somewhere near the input
             // Search in the parent's siblings and the parent's parent (to handle various WooCommerce structures)
@@ -165,10 +190,17 @@
      * CRITICAL: Appends as last child of body to ensure it breaks out of any theme containers
      */
     function injectModalHtml() {
-        // Remove existing modal first to ensure it's the last child of body
+        // Check if modal already exists in body - prevent duplication
         var $existingModal = $('#club-anketa-otp-modal');
         if ($existingModal.length > 0) {
-            $existingModal.remove();
+            if ($existingModal.parent().is('body')) {
+                // Modal already exists as direct child of body, no action needed
+                return;
+            }
+            // Modal exists but not as direct child of body - move it to body
+            // Using appendTo preserves modal state (vs remove+recreate)
+            $existingModal.appendTo('body');
+            return;
         }
 
         var modalHtml = '<div id="club-anketa-otp-modal" class="club-anketa-modal" style="display:none;">' +
@@ -359,9 +391,13 @@
             var $container = $btn.closest('.phone-verify-group, .phone-group');
             var $input = $container.find('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, input[type="tel"]').first();
             
-            // Fallback for Checkout page if grouping failed or input not found
+            // Fallback 1: Look for sibling input in the same container
             if ($input.length === 0) {
-                // Try to find the input based on the button's position in DOM
+                $input = $btn.closest('.phone-verify-container').siblings('input').first();
+            }
+            
+            // Fallback 2: Try to find the input based on the button's position in DOM
+            if ($input.length === 0) {
                 var $verifyContainer = $btn.closest('.phone-verify-container');
                 if ($verifyContainer.length > 0) {
                     // Look for sibling input or nearby phone input
@@ -370,22 +406,27 @@
                         $input = $verifyContainer.prev('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone');
                     }
                 }
-                
-                // Final fallback: find the closest phone field by traversing up to parent form
-                // This is more reliable than blindly selecting any phone field on the page
-                if ($input.length === 0) {
-                    var $form = $btn.closest('form');
-                    if ($form.length > 0) {
-                        // Try to find phone input within the same form
-                        $input = $form.find('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, .phone-local, input[type="tel"]').first();
-                    }
-                    
-                    // Ultimate fallback: search the entire page for known phone field selectors
-                    // This handles edge cases where the button may not be inside a form
-                    if ($input.length === 0) {
-                        $input = $('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').first();
-                    }
+            }
+            
+            // Fallback 3: find the closest phone field by traversing up to parent form
+            // This is more reliable than blindly selecting any phone field on the page
+            if ($input.length === 0) {
+                var $form = $btn.closest('form');
+                if ($form.length > 0) {
+                    // Try to find phone input within the same form
+                    $input = $form.find('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, .phone-local, input[type="tel"]').first();
                 }
+            }
+            
+            // Fallback 4 (Checkout Specific): Explicitly look for #billing_phone as ultimate fallback
+            // This handles edge cases where the button may not be inside a form or grouping failed
+            if ($input.length === 0 && $('#billing_phone').length > 0) {
+                $input = $('#billing_phone');
+            }
+            
+            // Ultimate fallback: search the entire page for any known phone field selectors
+            if ($input.length === 0) {
+                $input = $('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').first();
             }
             
             var phone = normalizePhone($input.val());
@@ -775,13 +816,35 @@
 
     /**
      * Open OTP modal
+     * CRITICAL FIX: Ensures modal exists in DOM before attempting to show it
      */
     function openModal(phone) {
+        var $modal = $('#club-anketa-otp-modal');
+        
+        // CRITICAL: Check if modal exists in the DOM
+        if ($modal.length === 0) {
+            // Modal is missing (likely removed by AJAX update or theme rendering)
+            // Re-inject it immediately
+            injectModalHtml();
+            // Re-query after injection to get the newly created modal
+            $modal = $('#club-anketa-otp-modal');
+            
+            // Validate modal was successfully created
+            if ($modal.length === 0) {
+                console.error('Club Anketa SMS: Failed to inject OTP modal');
+                return;
+            }
+        } else if (!$modal.parent().is('body')) {
+            // Modal exists but is not a direct child of body
+            // Move it to body to ensure it's not trapped inside a hidden or overflow:hidden container
+            $modal.appendTo('body');
+        }
+        
         var formattedPhone = '+995 ' + phone;
         $('.otp-phone-display').text(formattedPhone).data('phone', phone);
         clearOtpInputs();
         $('.otp-message').empty().removeClass('success error info');
-        $('#club-anketa-otp-modal').fadeIn(200);
+        $modal.fadeIn(200);
         $('.otp-digit').first().focus();
         $('body').addClass('club-anketa-modal-open');
     }
