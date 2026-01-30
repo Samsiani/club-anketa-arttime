@@ -57,7 +57,11 @@
         updateSubmitButtonStates();
 
         // Re-initialize on WooCommerce AJAX events (for checkout updates)
+        // CRITICAL: Ensures modal and verify buttons remain valid after WooCommerce AJAX refreshes
         $(document.body).on('updated_checkout', function() {
+            // Re-inject modal if it was removed or moved during AJAX update
+            injectModalHtml();
+            // Re-inject verify buttons for any new/recreated phone fields
             injectVerifyButtonForWooCommerce();
             initializePhoneFields();
             updateSubmitButtonStates();
@@ -188,6 +192,7 @@
     /**
      * Inject the OTP Modal HTML into the page
      * CRITICAL: Appends as last child of body to ensure it breaks out of any theme containers
+     * Uses class-based visibility: modal starts hidden (no .active class), shown by adding .active
      */
     function injectModalHtml() {
         // Check if modal already exists in body - prevent duplication
@@ -203,7 +208,9 @@
             return;
         }
 
-        var modalHtml = '<div id="club-anketa-otp-modal" class="club-anketa-modal" style="display:none;">' +
+        // NOTE: No inline style="display:none;" - visibility is controlled by .active class in CSS
+        // Modal starts hidden because it doesn't have .active class (CSS rule: :not(.active) { display: none })
+        var modalHtml = '<div id="club-anketa-otp-modal" class="club-anketa-modal">' +
             '<div class="club-anketa-modal-overlay"></div>' +
             '<div class="club-anketa-modal-content">' +
             '<button type="button" class="club-anketa-modal-close">&times;</button>' +
@@ -817,11 +824,12 @@
     /**
      * Open OTP modal
      * CRITICAL FIX: Ensures modal exists in DOM before attempting to show it
+     * Uses class-based visibility toggle (.active) for reliable display control
      */
     function openModal(phone) {
         var $modal = $('#club-anketa-otp-modal');
         
-        // CRITICAL: Check if modal exists in the DOM
+        // CRITICAL: Step 1 - Check if modal exists in the DOM
         if ($modal.length === 0) {
             // Modal is missing (likely removed by AJAX update or theme rendering)
             // Re-inject it immediately
@@ -834,9 +842,12 @@
                 console.error('Club Anketa SMS: Failed to inject OTP modal');
                 return;
             }
-        } else if (!$modal.parent().is('body')) {
-            // Modal exists but is not a direct child of body
-            // Move it to body to ensure it's not trapped inside a hidden or overflow:hidden container
+        }
+        
+        // CRITICAL: Step 2 - Ensure modal is a direct child of <body>
+        // This prevents the modal from being trapped inside restrictive containers
+        // (common issue on WooCommerce Checkout where overflow:hidden may hide it)
+        if (!$modal.parent().is('body')) {
             $modal.appendTo('body');
         }
         
@@ -844,16 +855,25 @@
         $('.otp-phone-display').text(formattedPhone).data('phone', phone);
         clearOtpInputs();
         $('.otp-message').empty().removeClass('success error info');
-        $modal.fadeIn(200);
+        
+        // CRITICAL: Step 3 - Use class-based toggle instead of fadeIn()
+        // Remove inline display style that might interfere with CSS rules
+        $modal.removeAttr('style');
+        // Add .active class to force visibility via CSS with !important rules
+        $modal.addClass('active');
+        
         $('.otp-digit').first().focus();
         $('body').addClass('club-anketa-modal-open');
     }
 
     /**
      * Close OTP modal
+     * Uses class-based toggle (.active) for reliable visibility control
      */
     function closeModal() {
-        $('#club-anketa-otp-modal').fadeOut(200);
+        var $modal = $('#club-anketa-otp-modal');
+        // Remove .active class to hide modal via CSS rules
+        $modal.removeClass('active');
         $('body').removeClass('club-anketa-modal-open');
         clearCountdown();
     }
