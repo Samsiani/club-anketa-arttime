@@ -110,42 +110,42 @@
             if ($phoneInput.length === 0 || $phoneInput.closest('.phone-verify-group').length > 0) {
                 return;
             }
-
-            // Check if PHP has appended a phone-verify-container somewhere near the input
-            // Search in the parent's siblings and the parent's parent (to handle various WooCommerce structures)
-            var $existingContainer = null;
             
-            // First check: Look for container as a sibling of the input
-            $existingContainer = $phoneInput.siblings('.phone-verify-container');
+            // CRITICAL FIX: Check if a verify button already exists near this input
+            // This prevents duplicate buttons when PHP has already rendered one
+            var $existingBtnContainer = null;
             
-            // Second check: Look in the input wrapper's siblings
-            if ($existingContainer.length === 0) {
-                var $inputWrapper = $phoneInput.parent();
-                $existingContainer = $inputWrapper.siblings('.phone-verify-container');
+            // Check in siblings
+            $existingBtnContainer = $phoneInput.siblings('.phone-verify-container');
+            
+            // Check in parent's children
+            if ($existingBtnContainer.length === 0) {
+                $existingBtnContainer = $phoneInput.parent().find('.phone-verify-container');
             }
             
-            // Third check: Look in the form-row wrapper's siblings (WooCommerce structure)
-            if ($existingContainer.length === 0) {
-                var $formRow = $phoneInput.closest('.form-row, p');
-                $existingContainer = $formRow.siblings('.phone-verify-container');
-            }
-            
-            // Fourth check: Look for any container that comes after this input in the DOM
-            if ($existingContainer.length === 0) {
-                var $formRow = $phoneInput.closest('.form-row, p');
-                $existingContainer = $formRow.nextAll('.phone-verify-container').first();
-            }
-            
-            // Fifth check: Look anywhere within the same form for a phone-verify-container
-            // that hasn't been associated with another input yet
-            if ($existingContainer.length === 0) {
-                var $form = $phoneInput.closest('form');
-                if ($form.length > 0) {
-                    $existingContainer = $form.find('.phone-verify-container').not('.phone-verify-group .phone-verify-container').first();
+            // Check in form-row siblings and children
+            var $formRow = $phoneInput.closest('.form-row, p');
+            if ($existingBtnContainer.length === 0) {
+                $existingBtnContainer = $formRow.find('.phone-verify-container');
+                if ($existingBtnContainer.length === 0) {
+                    $existingBtnContainer = $formRow.siblings('.phone-verify-container');
                 }
             }
             
-            if ($existingContainer.length > 0) {
+            // Check in form-row next elements
+            if ($existingBtnContainer.length === 0) {
+                $existingBtnContainer = $formRow.nextAll('.phone-verify-container').first();
+            }
+            
+            // Check anywhere within the same form for an unassociated container
+            if ($existingBtnContainer.length === 0) {
+                var $form = $phoneInput.closest('form');
+                if ($form.length > 0) {
+                    $existingBtnContainer = $form.find('.phone-verify-container').not('.phone-verify-group .phone-verify-container').first();
+                }
+            }
+            
+            if ($existingBtnContainer.length > 0) {
                 // PHP has appended the container; wrap input and move container into a phone-verify-group
                 // Create wrapper div
                 var $wrapper = $('<div class="phone-verify-group wc-phone-verify-group"></div>');
@@ -158,7 +158,7 @@
                 
                 // Use detach() to properly move the element from its current position
                 // detach() removes the element from the DOM and returns it for re-insertion
-                var $detachedContainer = $existingContainer.detach();
+                var $detachedContainer = $existingBtnContainer.detach();
                 $wrapper.append($detachedContainer);
             } else {
                 // No existing container from PHP, create everything from scratch
@@ -386,6 +386,19 @@
                     $input = $verifyContainer.siblings('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone').first();
                     if ($input.length === 0) {
                         $input = $verifyContainer.prev('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone');
+                    }
+                }
+                
+                // CRITICAL FIX for WooCommerce Checkout: If input still not found via DOM traversal,
+                // explicitly check if #billing_phone exists on the page (Checkout page fallback)
+                // Only use this fallback if the button is within the checkout form to avoid
+                // incorrect associations with other forms on the page
+                if ($input.length === 0 && $('#billing_phone').length > 0) {
+                    var $checkoutForm = $btn.closest('form.checkout, form.woocommerce-checkout');
+                    var $billingPhone = $('#billing_phone');
+                    // Only use billing_phone if button is in checkout form or billing_phone is in same form
+                    if ($checkoutForm.length > 0 || $billingPhone.closest('form').find($btn).length > 0) {
+                        $input = $billingPhone;
                     }
                 }
                 
@@ -793,13 +806,27 @@
 
     /**
      * Open OTP modal
+     * CRITICAL FIX: Ensures modal is appended to body to avoid z-index/overflow issues
      */
     function openModal(phone) {
+        var $modal = $('#club-anketa-otp-modal');
+        
+        // CRITICAL FIX: Ensure modal exists and is a direct child of body
+        // This prevents z-index or overflow:hidden issues from Checkout container
+        if ($modal.length === 0) {
+            // Modal doesn't exist, inject it
+            injectModalHtml();
+            $modal = $('#club-anketa-otp-modal');
+        } else if (!$modal.parent().is('body')) {
+            // Modal exists but is not a direct child of body - move it
+            $modal.detach().appendTo('body');
+        }
+        
         var formattedPhone = '+995 ' + phone;
         $('.otp-phone-display').text(formattedPhone).data('phone', phone);
         clearOtpInputs();
         $('.otp-message').empty().removeClass('success error info');
-        $('#club-anketa-otp-modal').fadeIn(200);
+        $modal.fadeIn(200);
         $('.otp-digit').first().focus();
         $('body').addClass('club-anketa-modal-open');
     }
