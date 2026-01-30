@@ -570,8 +570,8 @@ class Club_Anketa_Registration {
         $verify_button_html .= '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
         $verify_button_html .= '</span></div>';
 
-        // Add hidden field for verification token
-        $verify_button_html .= '<input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />';
+        // NOTE: The hidden otp_verification_token field is handled by JavaScript (updateVerificationToken function)
+        // which dynamically adds it inside the form to ensure proper form submission
 
         // Simply append the verification UI to the end of the field HTML
         // JavaScript will handle wrapping both input and container in phone-verify-group div

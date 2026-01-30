@@ -111,20 +111,43 @@
                 return;
             }
 
-            // Check if PHP has appended a phone-verify-container as a sibling
-            // (this happens when PHP appends to $field instead of using regex)
-            var $existingContainer = $phoneInput.parent().find('.phone-verify-container');
+            // Check if PHP has appended a phone-verify-container somewhere near the input
+            // Search in the parent's siblings and the parent's parent (to handle various WooCommerce structures)
+            var $existingContainer = null;
+            
+            // First check: Look for container as a sibling of the input
+            $existingContainer = $phoneInput.siblings('.phone-verify-container');
+            
+            // Second check: Look in the input wrapper's siblings
+            if ($existingContainer.length === 0) {
+                var $inputWrapper = $phoneInput.parent();
+                $existingContainer = $inputWrapper.siblings('.phone-verify-container');
+            }
+            
+            // Third check: Look in the form-row wrapper's siblings (WooCommerce structure)
+            if ($existingContainer.length === 0) {
+                var $formRow = $phoneInput.closest('.form-row, p');
+                $existingContainer = $formRow.siblings('.phone-verify-container');
+            }
+            
+            // Fourth check: Look for any container that comes after this input in the DOM
+            if ($existingContainer.length === 0) {
+                var $formRow = $phoneInput.closest('.form-row, p');
+                $existingContainer = $formRow.nextAll('.phone-verify-container').first();
+            }
             
             if ($existingContainer.length > 0) {
-                // PHP has appended the container; wrap both input and container in phone-verify-group
+                // PHP has appended the container; wrap input and move container into a phone-verify-group
                 // Create wrapper div
                 var $wrapper = $('<div class="phone-verify-group wc-phone-verify-group"></div>');
                 
-                // Insert wrapper before the input
+                // Insert wrapper before the input (within the input's current container)
                 $phoneInput.before($wrapper);
                 
-                // Move input and container into the wrapper
+                // Move input into the wrapper
                 $wrapper.append($phoneInput);
+                
+                // Move the container into the wrapper as well
                 $wrapper.append($existingContainer);
             } else {
                 // No existing container from PHP, create everything from scratch
