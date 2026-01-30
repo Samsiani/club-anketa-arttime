@@ -29,9 +29,7 @@
     var nonce = clubAnketaSms.nonce;
 
     // State variables
-    // Normalize verifiedPhone at initialization to ensure consistent comparison
-    // Note: normalizePhone function declaration is hoisted, so it's available here
-    var verifiedPhone = normalizePhone(clubAnketaSms.verifiedPhone || '');
+    var verifiedPhone = clubAnketaSms.verifiedPhone || '';
     var sessionVerifiedPhone = ''; // Phone verified in current session (not yet saved)
     var verificationToken = '';
     var countdownInterval = null;
@@ -49,9 +47,6 @@
         // Inject verify button for WooCommerce fields that don't have it
         injectVerifyButtonForWooCommerce();
 
-        // Ensure phone fields are always editable (never disabled/readonly)
-        ensurePhoneFieldsEditable();
-
         // Bind events
         bindEvents();
 
@@ -64,21 +59,8 @@
         // Re-initialize on WooCommerce AJAX events (for checkout updates)
         $(document.body).on('updated_checkout', function() {
             injectVerifyButtonForWooCommerce();
-            ensurePhoneFieldsEditable();
             initializePhoneFields();
             updateSubmitButtonStates();
-        });
-    }
-
-    /**
-     * Ensure phone fields are always editable (never disabled/readonly)
-     * This guarantees the billing_phone field is always accessible regardless of verification status
-     */
-    function ensurePhoneFieldsEditable() {
-        $('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, .phone-local').each(function() {
-            var $input = $(this);
-            // Remove any disabled or readonly attributes that might have been added
-            $input.prop('disabled', false).prop('readonly', false);
         });
     }
 
