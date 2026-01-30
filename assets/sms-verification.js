@@ -111,18 +111,36 @@
                 return;
             }
 
-            // Wrap the phone input in phone-verify-group container (Flexbox parent)
-            $phoneInput.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
+            // Check if PHP has appended a phone-verify-container as a sibling
+            // (this happens when PHP appends to $field instead of using regex)
+            var $existingContainer = $phoneInput.parent().find('.phone-verify-container');
             
-            // Add verify container as a sibling AFTER the input (not inside)
-            // This creates the clean sibling relationship required for side-by-side Flexbox layout
-            var verifyHtml = '<div class="phone-verify-container">' +
-                '<button type="button" class="phone-verify-btn" aria-label="' + i18n.verify + '">' + 
-                (i18n.verifyBtn || 'Verify') + '</button>' +
-                '<span class="phone-verified-icon" style="display:none;" aria-label="' + i18n.verified + '">' +
-                '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
-                '</span></div>';
-            $phoneInput.after(verifyHtml);
+            if ($existingContainer.length > 0) {
+                // PHP has appended the container; wrap both input and container in phone-verify-group
+                // Create wrapper div
+                var $wrapper = $('<div class="phone-verify-group wc-phone-verify-group"></div>');
+                
+                // Insert wrapper before the input
+                $phoneInput.before($wrapper);
+                
+                // Move input and container into the wrapper
+                $wrapper.append($phoneInput);
+                $wrapper.append($existingContainer);
+            } else {
+                // No existing container from PHP, create everything from scratch
+                // Wrap the phone input in phone-verify-group container (Flexbox parent)
+                $phoneInput.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
+                
+                // Add verify container as a sibling AFTER the input (not inside)
+                // This creates the clean sibling relationship required for side-by-side Flexbox layout
+                var verifyHtml = '<div class="phone-verify-container">' +
+                    '<button type="button" class="phone-verify-btn" aria-label="' + i18n.verify + '">' + 
+                    (i18n.verifyBtn || 'Verify') + '</button>' +
+                    '<span class="phone-verified-icon" style="display:none;" aria-label="' + i18n.verified + '">' +
+                    '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
+                    '</span></div>';
+                $phoneInput.after(verifyHtml);
+            }
         });
     }
 

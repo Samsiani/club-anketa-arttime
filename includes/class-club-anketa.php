@@ -554,7 +554,9 @@ class Club_Anketa_Registration {
         $current_phone = $this->normalize_phone($value);
         $is_verified = !empty($verified_phone) && $current_phone === $verified_phone;
 
-        // Inject the verification UI after the input field
+        // Build the verification UI HTML to append after the field
+        // NOTE: Do NOT wrap the input using regex as it can fail and strip the input.
+        // Instead, append the button HTML and let JavaScript handle the visual grouping.
         $verify_button_html = '<div class="phone-verify-container">';
         
         if ($is_verified) {
@@ -571,13 +573,9 @@ class Club_Anketa_Registration {
         // Add hidden field for verification token
         $verify_button_html .= '<input type="hidden" name="otp_verification_token" value="" class="otp-verification-token" />';
 
-        // Modify the field HTML to wrap in phone-verify-group and add button
-        // Find the input field and wrap it
-        $field = preg_replace(
-            '/(<input[^>]*id="billing_phone"[^>]*>)/i',
-            '<div class="phone-verify-group wc-phone-verify-group">$1' . $verify_button_html . '</div>',
-            $field
-        );
+        // Simply append the verification UI to the end of the field HTML
+        // JavaScript will handle wrapping both input and container in phone-verify-group div
+        $field .= $verify_button_html;
 
         return $field;
     }
