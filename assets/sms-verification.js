@@ -1,7 +1,7 @@
 /**
  * SMS OTP Verification Script
  * Club Anketa Registration for WooCommerce
- * Version: 2.2.0
+ * Version: 2.3.0 - WoodMart Theme Compatibility Update
  * 
  * Implements inline phone verification with:
  * - Verify button next to phone field (inline, same row)
@@ -15,14 +15,37 @@
  * 2. WooCommerce Checkout Page - #billing_phone
  * 3. WooCommerce Registration Form - #reg_billing_phone
  * 4. My Account - Edit Address/Details Page - #account_phone
+ * 
+ * WoodMart Theme Compatibility:
+ * - Uses body-delegated event listeners to handle AJAX re-renders
+ * - Aggressive DOM traversal fallbacks for finding phone inputs
+ * - Forced inline styles for modal to overcome z-index conflicts
+ * - Debug logging for troubleshooting on checkout pages
  */
 (function($) {
     'use strict';
 
+    // ========== DEBUG MODE ==========
+    // Set to true to enable extensive console logging for debugging
+    var DEBUG_MODE = true;
+    
+    function debugLog(message, data) {
+        if (DEBUG_MODE) {
+            if (data !== undefined) {
+                console.log('[Club Anketa SMS DEBUG] ' + message, data);
+            } else {
+                console.log('[Club Anketa SMS DEBUG] ' + message);
+            }
+        }
+    }
+
     // Exit if clubAnketaSms is not defined
     if (typeof clubAnketaSms === 'undefined') {
+        debugLog('CRITICAL: clubAnketaSms is not defined. Script exiting.');
         return;
     }
+
+    debugLog('Script initialized. clubAnketaSms config:', clubAnketaSms);
 
     var i18n = clubAnketaSms.i18n;
     var ajaxUrl = clubAnketaSms.ajaxUrl;
@@ -41,6 +64,8 @@
      * Initialize the SMS verification system
      */
     function init() {
+        debugLog('init() called - Starting initialization');
+        
         // Inject OTP Modal HTML - ensure it's at the end of body for proper positioning
         injectModalHtml();
 
@@ -56,15 +81,25 @@
         // Update submit button states
         updateSubmitButtonStates();
 
+        debugLog('init() complete - All event listeners bound');
+
         // Re-initialize on WooCommerce AJAX events (for checkout updates)
         // CRITICAL: Ensures modal and verify buttons remain valid after WooCommerce AJAX refreshes
+        // WOODMART FIX: Added 500ms delay to ensure our script runs AFTER WoodMart's scripts
         $(document.body).on('updated_checkout', function() {
-            // Re-inject modal if it was removed or moved during AJAX update
-            injectModalHtml();
-            // Re-inject verify buttons for any new/recreated phone fields
-            injectVerifyButtonForWooCommerce();
-            initializePhoneFields();
-            updateSubmitButtonStates();
+            debugLog('updated_checkout event fired - WooCommerce AJAX update detected');
+            
+            // WoodMart Fix: Delay re-initialization to run AFTER WoodMart's own scripts
+            setTimeout(function() {
+                debugLog('Running delayed re-initialization (500ms after updated_checkout)');
+                // Re-inject modal if it was removed or moved during AJAX update
+                injectModalHtml();
+                // Re-inject verify buttons for any new/recreated phone fields
+                injectVerifyButtonForWooCommerce();
+                initializePhoneFields();
+                updateSubmitButtonStates();
+                debugLog('Re-initialization complete after updated_checkout');
+            }, 500);
         });
     }
 
@@ -79,23 +114,41 @@
      *        <button>Verify</button>
      *    </div>
      * </div>
+     * 
+     * WOODMART FIX: Prioritizes #billing_phone ID lookup first, as WoodMart 
+     * often wraps inputs in multiple divs that break generic class-based selectors.
      */
     function injectVerifyButtonForWooCommerce() {
+        debugLog('injectVerifyButtonForWooCommerce() called');
+        
         // Array of phone field selectors to target
+        // WOODMART FIX: #billing_phone is first to prioritize checkout page detection
         var phoneSelectors = [
-            '#billing_phone',        // WooCommerce Checkout
+            '#billing_phone',        // WooCommerce Checkout (PRIORITY for WoodMart)
             '#reg_billing_phone',    // WooCommerce Registration Form
             '#account_phone',        // My Account > Account Details
             '#anketa_phone_local'    // Registration Shortcode Form (already handled in PHP)
         ];
+        
+        debugLog('Phone selectors to check:', phoneSelectors);
 
         phoneSelectors.forEach(function(selector) {
             var $phoneInput = $(selector);
             
+            debugLog('Checking selector: ' + selector + ', found: ' + $phoneInput.length);
+            
             // Skip if not found or already has verify group
-            if ($phoneInput.length === 0 || $phoneInput.closest('.phone-verify-group').length > 0) {
+            if ($phoneInput.length === 0) {
+                debugLog('  -> Skipping ' + selector + ': not found in DOM');
                 return;
             }
+            
+            if ($phoneInput.closest('.phone-verify-group').length > 0) {
+                debugLog('  -> Skipping ' + selector + ': already has verify group');
+                return;
+            }
+            
+            debugLog('  -> Processing ' + selector + ': input found, checking for existing button');
             
             // Improved duplicate button check: Check if a verify button already exists 
             // for this specific phone input (PHP may have rendered it server-side)
@@ -109,6 +162,7 @@
             
             // If a button already exists for this input, adapt to PHP structure instead of creating new
             if ($existingBtn.length > 0) {
+                debugLog('  -> Existing button found, adapting PHP structure');
                 // PHP has already rendered the button - just ensure proper grouping
                 var $verifyContainer = $existingBtn.closest('.phone-verify-container');
                 if ($verifyContainer.length > 0) {
@@ -126,25 +180,31 @@
             // Search in the parent's siblings and the parent's parent (to handle various WooCommerce structures)
             var $existingContainer = null;
             
+            debugLog('  -> Searching for existing PHP container near ' + selector);
+            
             // First check: Look for container as a sibling of the input
             $existingContainer = $phoneInput.siblings('.phone-verify-container');
+            if ($existingContainer.length > 0) debugLog('    -> Found as sibling');
             
             // Second check: Look in the input wrapper's siblings
             if ($existingContainer.length === 0) {
                 var $inputWrapper = $phoneInput.parent();
                 $existingContainer = $inputWrapper.siblings('.phone-verify-container');
+                if ($existingContainer.length > 0) debugLog('    -> Found in parent siblings');
             }
             
             // Third check: Look in the form-row wrapper's siblings (WooCommerce structure)
             if ($existingContainer.length === 0) {
                 var $formRow = $phoneInput.closest('.form-row, p');
                 $existingContainer = $formRow.siblings('.phone-verify-container');
+                if ($existingContainer.length > 0) debugLog('    -> Found in form-row siblings');
             }
             
             // Fourth check: Look for any container that comes after this input in the DOM
             if ($existingContainer.length === 0) {
                 var $formRow = $phoneInput.closest('.form-row, p');
                 $existingContainer = $formRow.nextAll('.phone-verify-container').first();
+                if ($existingContainer.length > 0) debugLog('    -> Found after form-row');
             }
             
             // Fifth check: Look anywhere within the same form for a phone-verify-container
@@ -153,10 +213,12 @@
                 var $form = $phoneInput.closest('form');
                 if ($form.length > 0) {
                     $existingContainer = $form.find('.phone-verify-container').not('.phone-verify-group .phone-verify-container').first();
+                    if ($existingContainer.length > 0) debugLog('    -> Found elsewhere in form');
                 }
             }
             
             if ($existingContainer.length > 0) {
+                debugLog('  -> Using existing PHP container, wrapping elements');
                 // PHP has appended the container; wrap input and move container into a phone-verify-group
                 // Create wrapper div
                 var $wrapper = $('<div class="phone-verify-group wc-phone-verify-group"></div>');
@@ -172,6 +234,7 @@
                 var $detachedContainer = $existingContainer.detach();
                 $wrapper.append($detachedContainer);
             } else {
+                debugLog('  -> No existing container, creating verify button from scratch');
                 // No existing container from PHP, create everything from scratch
                 // Wrap the phone input in phone-verify-group container (Flexbox parent)
                 $phoneInput.wrap('<div class="phone-verify-group wc-phone-verify-group"></div>');
@@ -185,8 +248,11 @@
                     '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>' +
                     '</span></div>';
                 $phoneInput.after(verifyHtml);
+                debugLog('  -> Verify button injected for ' + selector);
             }
         });
+        
+        debugLog('injectVerifyButtonForWooCommerce() complete');
     }
 
     /**
@@ -195,18 +261,24 @@
      * Uses class-based visibility: modal starts hidden (no .active class), shown by adding .active
      */
     function injectModalHtml() {
+        debugLog('injectModalHtml() called');
+        
         // Check if modal already exists in body - prevent duplication
         var $existingModal = $('#club-anketa-otp-modal');
         if ($existingModal.length > 0) {
             if ($existingModal.parent().is('body')) {
                 // Modal already exists as direct child of body, no action needed
+                debugLog('Modal already exists as direct child of body');
                 return;
             }
             // Modal exists but not as direct child of body - move it to body
             // Using appendTo preserves modal state (vs remove+recreate)
+            debugLog('Modal exists but not in body, moving to body');
             $existingModal.appendTo('body');
             return;
         }
+        
+        debugLog('Creating new modal HTML');
 
         // NOTE: No inline style="display:none;" - visibility is controlled by .active class in CSS
         // Modal starts hidden because it doesn't have .active class (CSS rule: :not(.active) { display: none })
@@ -242,12 +314,14 @@
         // CRITICAL: Append to body as the last child to ensure it's outside any theme containers
         // This prevents the modal from being trapped inside restricted parent elements
         $(document.body).append(modalHtml);
+        debugLog('Modal HTML appended to body');
     }
 
     /**
      * Initialize phone field states on page load
      */
     function initializePhoneFields() {
+        debugLog('initializePhoneFields() called');
         // Check each phone field and set initial state
         // Include all possible phone field selectors
         $('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').each(function() {
@@ -377,40 +451,65 @@
 
     /**
      * Bind all event handlers
+     * WOODMART FIX: Uses body-level event delegation to handle AJAX re-renders
      */
     function bindEvents() {
+        debugLog('bindEvents() called - Setting up event handlers');
+        
         // Phone input change - real-time monitoring (edit detection)
         // Include all phone field selectors
         $(document).on('input change', '.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local', function() {
             var $input = $(this);
             var currentPhone = $input.val();
+            debugLog('Phone input changed: ' + currentPhone);
             // Store reference to current field for later use
             currentPhoneField = $input;
             updatePhoneFieldState($input, currentPhone);
         });
 
         // Verify button click - Opens modal immediately
-        $(document).on('click', '.phone-verify-btn', function(e) {
+        // WOODMART FIX: Uses body-level delegation to survive AJAX re-renders
+        $(document.body).on('click', '.phone-verify-btn', function(e) {
+            debugLog('======================================');
+            debugLog('VERIFY BUTTON CLICK DETECTED');
+            debugLog('======================================');
+            
             e.preventDefault();
             e.stopPropagation();
             
             var $btn = $(this);
+            debugLog('Button element:', $btn);
+            debugLog('Button HTML:', $btn.prop('outerHTML'));
+            
+            // WOODMART FIX: Assume DOM is "hostile" - use aggressive fallback strategy
             var $container = $btn.closest('.phone-verify-group, .phone-group');
+            debugLog('Attempting to find input...');
+            debugLog('Container found:', $container.length > 0);
+            if ($container.length > 0) {
+                debugLog('Container HTML:', $container.prop('outerHTML').substring(0, 200) + '...');
+            }
+            
             var $input = $container.find('.phone-local, #billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, input[type="tel"]').first();
+            debugLog('Input found in container:', $input.length);
             
             // Fallback 1: Look for sibling input in the same container
             if ($input.length === 0) {
+                debugLog('Fallback 1: Looking for sibling input...');
                 $input = $btn.closest('.phone-verify-container').siblings('input').first();
+                debugLog('Fallback 1 result:', $input.length);
             }
             
             // Fallback 2: Try to find the input based on the button's position in DOM
             if ($input.length === 0) {
+                debugLog('Fallback 2: Looking near verify container...');
                 var $verifyContainer = $btn.closest('.phone-verify-container');
                 if ($verifyContainer.length > 0) {
                     // Look for sibling input or nearby phone input
                     $input = $verifyContainer.siblings('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone').first();
+                    debugLog('Fallback 2a result:', $input.length);
                     if ($input.length === 0) {
                         $input = $verifyContainer.prev('input[type="tel"], #billing_phone, #reg_billing_phone, #account_phone');
+                        debugLog('Fallback 2b result:', $input.length);
                     }
                 }
             }
@@ -418,29 +517,44 @@
             // Fallback 3: find the closest phone field by traversing up to parent form
             // This is more reliable than blindly selecting any phone field on the page
             if ($input.length === 0) {
+                debugLog('Fallback 3: Looking in parent form...');
                 var $form = $btn.closest('form');
+                debugLog('Parent form found:', $form.length > 0);
                 if ($form.length > 0) {
                     // Try to find phone input within the same form
                     $input = $form.find('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local, .phone-local, input[type="tel"]').first();
+                    debugLog('Fallback 3 result:', $input.length);
                 }
             }
             
-            // Fallback 4 (Checkout Specific): Explicitly look for #billing_phone as ultimate fallback
-            // This handles edge cases where the button may not be inside a form or grouping failed
-            if ($input.length === 0 && $('#billing_phone').length > 0) {
+            // WOODMART FIX: Fallback 4 (Checkout Specific): Explicitly look for #billing_phone
+            // WoodMart's DOM structure may not group elements properly
+            if ($input.length === 0) {
+                debugLog('Fallback 4 (WOODMART): Direct #billing_phone lookup...');
                 $input = $('#billing_phone');
+                debugLog('Fallback 4 result:', $input.length);
             }
             
             // Ultimate fallback: search the entire page for any known phone field selectors
             if ($input.length === 0) {
+                debugLog('Ultimate fallback: Page-wide search...');
                 $input = $('#billing_phone, #reg_billing_phone, #account_phone, #anketa_phone_local').first();
+                debugLog('Ultimate fallback result:', $input.length);
+            }
+            
+            debugLog('FINAL: Input found length:', $input.length);
+            if ($input.length > 0) {
+                debugLog('FINAL: Input ID:', $input.attr('id'));
+                debugLog('FINAL: Input value raw:', $input.val());
             }
             
             var phone = normalizePhone($input.val());
+            debugLog('Input value normalized:', phone);
             
             if (!phone || phone.length !== 9) {
+                debugLog('VALIDATION FAILED: Phone must be 9 digits, got: ' + phone.length);
                 showModalError(i18n.phoneRequired || 'Phone number must be 9 digits');
-                $input.focus();
+                if ($input.length > 0) $input.focus();
                 return;
             }
 
@@ -450,16 +564,19 @@
             // Disable button and show loading
             $btn.prop('disabled', true).addClass('loading');
 
+            debugLog('Calling openModal with phone:', phone);
             // Open modal first, then send OTP (better UX)
             openModal(phone);
             showMessage(i18n.sendingOtp || 'Sending code...', 'info');
 
             // Send OTP
             sendOtp(phone, function() {
+                debugLog('OTP sent successfully');
                 $btn.prop('disabled', false).removeClass('loading');
                 showMessage(i18n.enterCode || 'Enter the 6-digit code', 'success');
                 startResendCountdown(60);
             }, function(errorMessage) {
+                debugLog('OTP send FAILED:', errorMessage);
                 $btn.prop('disabled', false).removeClass('loading');
                 // Show error in modal, don't close it
                 showMessage(errorMessage || i18n.error, 'error');
@@ -825,12 +942,17 @@
      * Open OTP modal
      * CRITICAL FIX: Ensures modal exists in DOM before attempting to show it
      * Uses class-based visibility toggle (.active) for reliable display control
+     * WOODMART FIX: Forces inline styles as fallback to overcome theme z-index conflicts
      */
     function openModal(phone) {
+        debugLog('openModal() called with phone:', phone);
+        
         var $modal = $('#club-anketa-otp-modal');
+        debugLog('Modal element found in DOM?', $modal.length > 0);
         
         // CRITICAL: Step 1 - Check if modal exists in the DOM
         if ($modal.length === 0) {
+            debugLog('Modal is missing! Re-injecting...');
             // Modal is missing (likely removed by AJAX update or theme rendering)
             // Re-inject it immediately
             injectModalHtml();
@@ -839,15 +961,21 @@
             
             // Validate modal was successfully created
             if ($modal.length === 0) {
-                console.error('Club Anketa SMS: Failed to inject OTP modal');
+                console.error('[Club Anketa SMS] CRITICAL: Failed to inject OTP modal');
+                debugLog('CRITICAL ERROR: Modal injection failed!');
                 return;
             }
+            debugLog('Modal re-injected successfully');
         }
         
         // CRITICAL: Step 2 - Ensure modal is a direct child of <body>
         // This prevents the modal from being trapped inside restrictive containers
         // (common issue on WooCommerce Checkout where overflow:hidden may hide it)
-        if (!$modal.parent().is('body')) {
+        var isDirectChildOfBody = $modal.parent().is('body');
+        debugLog('Modal parent is body?', isDirectChildOfBody);
+        
+        if (!isDirectChildOfBody) {
+            debugLog('Moving modal to body...');
             $modal.appendTo('body');
         }
         
@@ -856,26 +984,56 @@
         clearOtpInputs();
         $('.otp-message').empty().removeClass('success error info');
         
-        // CRITICAL: Step 3 - Use class-based toggle instead of fadeIn()
-        // Remove inline display style that might interfere with CSS rules
+        // CRITICAL: Step 3 - Force visibility with both class AND inline styles
+        // WOODMART FIX: Force inline styles to overcome any theme CSS conflicts
+        debugLog('Forcing modal visibility with inline styles and .active class');
+        
+        // First, remove any interfering inline styles
         $modal.removeAttr('style');
-        // Add .active class to force visibility via CSS with !important rules
+        
+        // WOODMART FIX: Apply forced inline styles as FALLBACK
+        // This ensures visibility even if theme CSS has higher specificity
+        $modal.css({
+            'display': 'flex',
+            'visibility': 'visible',
+            'opacity': '1',
+            'z-index': '2147483647' // Max Z-Index to beat WoodMart sticky headers
+        });
+        
+        // Also add .active class for CSS-based visibility rules
         $modal.addClass('active');
+        
+        debugLog('Modal should now be visible. Final modal element:', $modal);
+        debugLog('Modal computed display:', $modal.css('display'));
+        debugLog('Modal computed visibility:', $modal.css('visibility'));
+        debugLog('Modal computed z-index:', $modal.css('z-index'));
         
         $('.otp-digit').first().focus();
         $('body').addClass('club-anketa-modal-open');
+        
+        debugLog('openModal() complete');
     }
 
     /**
      * Close OTP modal
      * Uses class-based toggle (.active) for reliable visibility control
+     * Also clears forced inline styles
      */
     function closeModal() {
+        debugLog('closeModal() called');
         var $modal = $('#club-anketa-otp-modal');
         // Remove .active class to hide modal via CSS rules
         $modal.removeClass('active');
+        // Also clear the forced inline styles
+        $modal.css({
+            'display': '',
+            'visibility': '',
+            'opacity': '',
+            'z-index': ''
+        });
         $('body').removeClass('club-anketa-modal-open');
         clearCountdown();
+        debugLog('closeModal() complete');
     }
 
     /**
@@ -928,5 +1086,86 @@
 
     // Initialize on document ready
     $(document).ready(init);
+    
+    // ========== EXPOSED TEST FUNCTIONS ==========
+    // These functions are exposed globally for debugging purposes.
+    // Users can call them from the browser console to test modal behavior
+    // independently of event handlers.
+    
+    /**
+     * Test function to open modal directly from console
+     * Usage: testOpenModal('555123456')
+     * This separates UI logic from event logic for debugging
+     */
+    window.testOpenModal = function(phone) {
+        console.log('[Club Anketa SMS TEST] testOpenModal called with phone:', phone);
+        if (!phone || phone.length < 9) {
+            console.warn('[Club Anketa SMS TEST] Please provide a 9-digit phone number');
+            console.log('[Club Anketa SMS TEST] Usage: testOpenModal("555123456")');
+            return false;
+        }
+        
+        // Ensure modal HTML exists
+        injectModalHtml();
+        
+        // Open the modal
+        openModal(phone);
+        
+        console.log('[Club Anketa SMS TEST] Modal should now be visible');
+        return true;
+    };
+    
+    /**
+     * Test function to close modal from console
+     * Usage: testCloseModal()
+     */
+    window.testCloseModal = function() {
+        console.log('[Club Anketa SMS TEST] testCloseModal called');
+        closeModal();
+        return true;
+    };
+    
+    /**
+     * Test function to check current state
+     * Usage: testCheckState()
+     */
+    window.testCheckState = function() {
+        var $modal = $('#club-anketa-otp-modal');
+        var $billingPhone = $('#billing_phone');
+        var $verifyBtns = $('.phone-verify-btn');
+        
+        console.log('========== Club Anketa SMS State Check ==========');
+        console.log('Modal exists:', $modal.length > 0);
+        console.log('Modal parent is body:', $modal.parent().is('body'));
+        console.log('Modal has .active class:', $modal.hasClass('active'));
+        console.log('Modal computed display:', $modal.css('display'));
+        console.log('Modal computed visibility:', $modal.css('visibility'));
+        console.log('Modal computed z-index:', $modal.css('z-index'));
+        console.log('');
+        console.log('#billing_phone exists:', $billingPhone.length > 0);
+        console.log('#billing_phone value:', $billingPhone.val());
+        console.log('');
+        console.log('Verify buttons found:', $verifyBtns.length);
+        $verifyBtns.each(function(i) {
+            console.log('  Button ' + i + ' visible:', $(this).is(':visible'));
+        });
+        console.log('');
+        console.log('Session verified phone:', sessionVerifiedPhone);
+        console.log('Stored verified phone:', verifiedPhone);
+        console.log('=================================================');
+        
+        return {
+            modalExists: $modal.length > 0,
+            modalInBody: $modal.parent().is('body'),
+            modalActive: $modal.hasClass('active'),
+            billingPhoneExists: $billingPhone.length > 0,
+            billingPhoneValue: $billingPhone.val(),
+            verifyButtonCount: $verifyBtns.length,
+            sessionVerifiedPhone: sessionVerifiedPhone,
+            storedVerifiedPhone: verifiedPhone
+        };
+    };
+    
+    debugLog('Test functions exposed: testOpenModal(), testCloseModal(), testCheckState()');
 
 })(jQuery);

@@ -395,6 +395,13 @@ button[type="submit"].verification-blocked {
 
 /* ===== OTP Verification Modal Styles ===== */
 /* Critical: Complete CSS Isolation to prevent theme collisions */
+/* Version 2.3.0: Enhanced WoodMart theme compatibility */
+/* 
+ * WoodMart Compatibility Notes:
+ * - Uses z-index: 2147483647 (max value) to appear above WoodMart sticky headers
+ * - Position fixed with viewport units ensures visibility regardless of parent containers
+ * - All critical properties use !important to override theme CSS specificity
+ */
 
 /* Body scroll lock when modal is open */
 body.club-anketa-modal-open {
