@@ -11,9 +11,23 @@ if (!defined('ABSPATH')) {
 }
 
 $user_id    = isset($_GET['user_id']) ? absint($_GET['user_id']) : 0;
+$terms_type = isset($_GET['terms_type']) ? sanitize_key($_GET['terms_type']) : '';
 $anketa_url = esc_url(add_query_arg('user_id', $user_id, home_url('/print-anketa/')));
 
-$terms_html_raw = (string) get_option('club_anketa_terms_html', '');
+// Determine which content and title to display based on terms_type
+$is_specific_terms = false;
+if ($terms_type === 'sms') {
+    $terms_html_raw = (string) get_option('club_anketa_sms_terms_html', '');
+    $page_title     = __('SMS შეტყობინების პირობები', 'club-anketa');
+    $is_specific_terms = true;
+} elseif ($terms_type === 'call') {
+    $terms_html_raw = (string) get_option('club_anketa_call_terms_html', '');
+    $page_title     = __('სატელეფონო ზარის პირობები', 'club-anketa');
+    $is_specific_terms = true;
+} else {
+    $terms_html_raw = (string) get_option('club_anketa_terms_html', '');
+    $page_title     = __('წესები და პირობები', 'club-anketa');
+}
 $terms_url      = (string) get_option('club_anketa_terms_url', '');
 
 $fallback_rules = <<<HTML
@@ -69,7 +83,7 @@ if (trim($terms_html_raw) !== '') {
 </div>
 
 <div class="signature-terms-wrapper page">
-    <h2 style="text-align:center; margin:0 0 8mm;"><?php echo esc_html__('წესები და პირობები', 'club-anketa'); ?></h2>
+    <h2 style="text-align:center; margin:0 0 8mm;"><?php echo esc_html($page_title); ?></h2>
 
     <?php if ($terms_html_prepared !== ''): ?>
         <div class="rules-inner">
@@ -77,6 +91,10 @@ if (trim($terms_html_raw) !== '') {
             // Already sanitized + formatted; output directly.
             echo $terms_html_prepared; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             ?>
+        </div>
+    <?php elseif ($is_specific_terms): ?>
+        <div class="rules-inner">
+            <p style="color:#555;"><?php echo esc_html__('No content has been configured for this terms type. Please configure it in the Club Anketa Settings.', 'club-anketa'); ?></p>
         </div>
     <?php elseif (!empty($terms_url)): ?>
         <iframe class="terms-iframe" src="<?php echo esc_url($terms_url); ?>"></iframe>
