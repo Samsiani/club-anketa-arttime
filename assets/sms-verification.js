@@ -1,7 +1,7 @@
 /**
  * SMS OTP Verification Script
  * Club Anketa Registration for WooCommerce
- * Version: 2.4.0 - WoodMart Theme Compatibility "Jailbreak" Update
+ * Version: 2.3.0 - WoodMart Theme Compatibility Update
  * 
  * Implements inline phone verification with:
  * - Verify button next to phone field (inline, same row)
@@ -16,12 +16,11 @@
  * 3. WooCommerce Registration Form - #reg_billing_phone
  * 4. My Account - Edit Address/Details Page - #account_phone
  * 
- * WoodMart Theme Compatibility (Jailbreak Logic):
- * - Forces modal to be a DIRECT CHILD of <body> to escape restrictive containers
- * - Uses aggressive inline styles to override any theme CSS conflicts
+ * WoodMart Theme Compatibility:
  * - Uses body-delegated event listeners to handle AJAX re-renders
  * - Aggressive DOM traversal fallbacks for finding phone inputs
- * - Debug logging ("Anketa Debug:") for troubleshooting on checkout pages
+ * - Forced inline styles for modal to overcome z-index conflicts
+ * - Debug logging for troubleshooting on checkout pages
  */
 (function($) {
     'use strict';
@@ -32,14 +31,14 @@
     // 2. Setting window.CLUB_ANKETA_DEBUG = true before this script loads
     // Default is false in production; enable for troubleshooting WoodMart issues
     var DEBUG_MODE = (typeof clubAnketaSms !== 'undefined' && clubAnketaSms.debug === true) ||
-                     (typeof window.CLUB_ANKETA_DEBUG !== 'undefined' && window.CLUB_ANKETA_DEBUG === true)
+                     (typeof window.CLUB_ANKETA_DEBUG !== 'undefined' && window.CLUB_ANKETA_DEBUG === true);
     
     function debugLog(message, data) {
         if (DEBUG_MODE) {
             if (data !== undefined) {
-                console.log('Anketa Debug: ' + message, data);
+                console.log('[Club Anketa SMS DEBUG] ' + message, data);
             } else {
-                console.log('Anketa Debug: ' + message);
+                console.log('[Club Anketa SMS DEBUG] ' + message);
             }
         }
     }
@@ -95,6 +94,11 @@
             debugLog('updated_checkout event fired - WooCommerce AJAX update detected');
             
             // WoodMart Fix: Delay re-initialization to run AFTER WoodMart's own scripts
+            // The 500ms delay is based on testing with WoodMart theme which runs its own
+            // JavaScript after the standard WooCommerce updated_checkout event.
+            // WoodMart's scripts can overwrite our DOM changes if we run immediately.
+            // 500ms provides sufficient margin for WoodMart's scripts to complete.
+            // If issues persist, try increasing to 750ms or 1000ms.
             setTimeout(function() {
                 debugLog('Running delayed re-initialization (500ms after updated_checkout)');
                 // Re-inject modal if it was removed or moved during AJAX update
@@ -277,9 +281,9 @@
                 return;
             }
             // Modal exists but not as direct child of body - move it to body
-            // Using detach().appendTo() preserves event handlers
+            // Using appendTo preserves modal state (vs remove+recreate)
             debugLog('Modal exists but not in body, moving to body');
-            $existingModal.detach().appendTo('body');
+            $existingModal.appendTo('body');
             return;
         }
         
@@ -476,7 +480,7 @@
         // WOODMART FIX: Uses body-level delegation to survive AJAX re-renders
         $(document.body).on('click', '.phone-verify-btn', function(e) {
             debugLog('======================================');
-            debugLog('VERIFY BUTTON CLICK EVENT');
+            debugLog('VERIFY BUTTON CLICK DETECTED');
             debugLog('======================================');
             
             e.preventDefault();
@@ -536,12 +540,8 @@
             // WoodMart's DOM structure may not group elements properly
             if ($input.length === 0) {
                 debugLog('Fallback 4 (WOODMART): Direct #billing_phone lookup...');
-                if ($('#billing_phone').length > 0) {
-                    $input = $('#billing_phone');
-                    debugLog('Fallback 4 result: FOUND #billing_phone');
-                } else {
-                    debugLog('Fallback 4 result: #billing_phone NOT found');
-                }
+                $input = $('#billing_phone');
+                debugLog('Fallback 4 result:', $input.length);
             }
             
             // Ultimate fallback: search the entire page for any known phone field selectors
@@ -708,7 +708,7 @@
             },
             success: function(response) {
                 // Log the full response for debugging
-                debugLog('Send OTP response:', response);
+                console.log('[Club Anketa SMS] Send OTP response:', response);
                 
                 if (response.success) {
                     if (typeof successCallback === 'function') {
@@ -716,7 +716,7 @@
                     }
                 } else {
                     // Log detailed error info for debugging API/credential issues
-                    console.error('Anketa Debug: OTP send failed:', {
+                    console.error('[Club Anketa SMS] OTP send failed:', {
                         message: response.data && response.data.message ? response.data.message : 'Unknown error',
                         data: response.data,
                         phone: phone
@@ -732,7 +732,7 @@
             },
             error: function(xhr, status, error) {
                 // Log detailed network/server error for debugging
-                console.error('Anketa Debug: AJAX error:', {
+                console.error('[Club Anketa SMS] AJAX error:', {
                     status: status,
                     error: error,
                     responseText: xhr.responseText,
@@ -775,7 +775,7 @@
             },
             success: function(response) {
                 // Log the full response for debugging
-                debugLog('Verify OTP response:', response);
+                console.log('[Club Anketa SMS] Verify OTP response:', response);
                 
                 $btn.prop('disabled', false).text(i18n.verify || 'Verify');
 
@@ -805,7 +805,7 @@
                     }, 800);
                 } else {
                     // Log detailed error info for debugging
-                    console.error('Anketa Debug: OTP verification failed:', {
+                    console.error('[Club Anketa SMS] OTP verification failed:', {
                         message: response.data && response.data.message ? response.data.message : 'Unknown error',
                         data: response.data,
                         phone: phone,
@@ -822,7 +822,7 @@
             },
             error: function(xhr, status, error) {
                 // Log detailed network/server error for debugging
-                console.error('Anketa Debug: Verify AJAX error:', {
+                console.error('[Club Anketa SMS] Verify AJAX error:', {
                     status: status,
                     error: error,
                     responseText: xhr.responseText,
@@ -949,128 +949,83 @@
 
     /**
      * Open OTP modal
+     * CRITICAL FIX: Ensures modal exists in DOM before attempting to show it
      * 
-     * CRITICAL "JAILBREAK" FIX FOR WOODMART THEME:
+     * Visibility control uses a DUAL approach for maximum compatibility:
+     * 1. CSS class (.active) - Provides visibility via CSS rules with !important
+     * 2. Inline styles - FALLBACK for WoodMart and other themes with aggressive CSS
      * 
-     * WoodMart theme (and other aggressive themes) may apply:
-     * - overflow: hidden to checkout form containers
-     * - transform properties that create new stacking contexts
-     * - z-index stacking that hides position:fixed modals
-     * 
-     * This function implements the "Jailbreak" logic:
-     * 1. FORCE modal to be a direct child of <body> (escape restrictive containers)
-     * 2. Apply aggressive inline styles to override ANY theme CSS
-     * 3. Use maximum z-index (2147483647) to appear above all theme elements
+     * The inline styles ensure the modal appears even when theme CSS has higher
+     * specificity than our !important rules (e.g., WoodMart sticky headers).
      */
     function openModal(phone) {
-        debugLog('======================================');
-        debugLog('openModal() CALLED');
-        debugLog('======================================');
-        debugLog('Phone number:', phone);
+        debugLog('openModal() called with phone:', phone);
         
         var $modal = $('#club-anketa-otp-modal');
-        debugLog('Modal element found in DOM:', $modal.length > 0);
+        debugLog('Modal element found in DOM?', $modal.length > 0);
         
-        // ========== STEP 1: ENSURE MODAL EXISTS ==========
+        // CRITICAL: Step 1 - Check if modal exists in the DOM
         if ($modal.length === 0) {
             debugLog('Modal is missing! Re-injecting...');
+            // Modal is missing (likely removed by AJAX update or theme rendering)
+            // Re-inject it immediately
             injectModalHtml();
+            // Re-query after injection to get the newly created modal
             $modal = $('#club-anketa-otp-modal');
             
+            // Validate modal was successfully created
             if ($modal.length === 0) {
-                console.error('Anketa Debug: CRITICAL ERROR - Failed to inject OTP modal');
+                console.error('[Club Anketa SMS] CRITICAL: Failed to inject OTP modal');
+                debugLog('CRITICAL ERROR: Modal injection failed!');
                 return;
             }
             debugLog('Modal re-injected successfully');
         }
         
-        // ========== STEP 2: JAILBREAK - FORCE MODAL TO BODY ==========
-        // This is the CRITICAL fix for WoodMart theme compatibility
-        // The modal MUST be a direct child of <body> to escape any restrictive containers
+        // CRITICAL: Step 2 - Ensure modal is a direct child of <body>
+        // This prevents the modal from being trapped inside restrictive containers
+        // (common issue on WooCommerce Checkout where overflow:hidden may hide it)
+        var isDirectChildOfBody = $modal.parent().is('body');
+        debugLog('Modal parent is body?', isDirectChildOfBody);
         
-        var modalParent = $modal.parent().get(0);
-        debugLog('Modal parent element (BEFORE move):', modalParent);
-        debugLog('Modal parent tagName:', modalParent ? modalParent.tagName : 'null');
-        debugLog('Modal parent is document.body:', modalParent === document.body);
-        
-        if (modalParent !== document.body) {
-            debugLog('JAILBREAK: Modal is NOT a direct child of body. Relocating now...');
-            // Use detach() to preserve event handlers, then appendTo body
-            $modal.detach().appendTo('body');
-            debugLog('JAILBREAK: Modal relocated to body');
-            
-            // Verify the move was successful
-            var newParent = $modal.parent().get(0);
-            debugLog('Modal parent element (AFTER move):', newParent);
-            debugLog('Modal parent is now document.body:', newParent === document.body);
-        } else {
-            debugLog('Modal is already a direct child of body (good)');
+        if (!isDirectChildOfBody) {
+            debugLog('Moving modal to body...');
+            $modal.appendTo('body');
         }
         
-        // ========== STEP 3: SET MODAL CONTENT ==========
         var formattedPhone = '+995 ' + phone;
         $('.otp-phone-display').text(formattedPhone).data('phone', phone);
         clearOtpInputs();
         $('.otp-message').empty().removeClass('success error info');
         
-        // ========== STEP 4: AGGRESSIVE VISIBILITY STYLING ==========
-        // CRITICAL: Do NOT rely on CSS classes alone. WoodMart's CSS may be too specific.
-        // Apply all critical styles directly via .css() to override any theme conflicts.
+        // CRITICAL: Step 3 - Force visibility with both class AND inline styles
+        // WOODMART FIX: Force inline styles to overcome any theme CSS conflicts
+        debugLog('Forcing modal visibility with inline styles and .active class');
         
-        debugLog('Applying aggressive inline styles for visibility...');
-        
-        // First, remove any existing inline styles that might interfere
+        // First, remove any interfering inline styles
         $modal.removeAttr('style');
         
-        // Apply aggressive inline styles - these override EVERYTHING
+        // WOODMART FIX: Apply forced inline styles as FALLBACK
+        // This ensures visibility even if theme CSS has higher specificity
         $modal.css({
             'display': 'flex',
             'visibility': 'visible',
             'opacity': '1',
-            'position': 'fixed',
-            'top': '0',
-            'left': '0',
-            'width': '100vw',
-            'height': '100vh',
-            'z-index': '2147483647', // Maximum 32-bit integer - highest valid CSS z-index
-            'background-color': 'transparent', // Overlay div handles the dark background
-            'pointer-events': 'auto',
-            'transform': 'none', // Prevent any transform that could create stacking context issues
-            'margin': '0',
-            'padding': '16px',
-            'box-sizing': 'border-box',
-            'justify-content': 'center',
-            'align-items': 'center'
+            'z-index': '2147483647' // Max Z-Index to beat WoodMart sticky headers
         });
         
-        // Also add .active class for CSS-based rules as a fallback
+        // Also add .active class for CSS-based visibility rules
         $modal.addClass('active');
         
-        // Lock body scroll
+        debugLog('Modal should now be visible. Final modal element:', $modal);
+        debugLog('Modal computed display:', $modal.css('display'));
+        debugLog('Modal computed visibility:', $modal.css('visibility'));
+        debugLog('Modal computed z-index:', $modal.css('z-index'));
+        
+        $('.otp-digit').first().focus();
         $('body').addClass('club-anketa-modal-open');
         
-        // Focus first OTP input
-        setTimeout(function() {
-            $('.otp-digit').first().focus();
-        }, 100);
-        
-        // ========== STEP 5: DEBUG - LOG FINAL STATE ==========
-        debugLog('Modal final computed styles:');
-        debugLog('  display:', $modal.css('display'));
-        debugLog('  visibility:', $modal.css('visibility'));
-        debugLog('  opacity:', $modal.css('opacity'));
-        debugLog('  position:', $modal.css('position'));
-        debugLog('  z-index:', $modal.css('z-index'));
-        debugLog('  top:', $modal.css('top'));
-        debugLog('  left:', $modal.css('left'));
-        debugLog('  width:', $modal.css('width'));
-        debugLog('  height:', $modal.css('height'));
-        debugLog('Modal has .active class:', $modal.hasClass('active'));
-        debugLog('Modal parent is body:', $modal.parent().is('body'));
-        
-        debugLog('======================================');
-        debugLog('openModal() COMPLETE - Modal should be visible');
-        debugLog('======================================');
+        debugLog('openModal() complete');
     }
 
     /**
@@ -1081,20 +1036,12 @@
     function closeModal() {
         debugLog('closeModal() called');
         var $modal = $('#club-anketa-otp-modal');
-        
         // Remove .active class to hide modal via CSS rules
         $modal.removeClass('active');
-        
         // Remove all inline styles added by openModal() to allow CSS rules to take over
-        // This resets the modal to its default hidden state defined in CSS
         $modal.removeAttr('style');
-        
-        // Unlock body scroll
         $('body').removeClass('club-anketa-modal-open');
-        
-        // Clear countdown
         clearCountdown();
-        
         debugLog('closeModal() complete');
     }
 
@@ -1151,33 +1098,43 @@
     
     // ========== EXPOSED DEBUG FUNCTIONS ==========
     // These functions are exposed globally for debugging WoodMart compatibility issues.
-    // Only exposed when DEBUG_MODE is enabled to avoid polluting the global namespace in production.
-    // To enable: window.CLUB_ANKETA_DEBUG = true (before script loads) or clubAnketaSms.debug = true (in PHP)
-    // Available as window.clubAnketaSmsDebug.openModal(), .closeModal(), .checkState()
-    // Also available as short aliases: testOpenModal(), testCloseModal(), testCheckState()
+    // They are namespaced under window.clubAnketaSmsDebug and only available when
+    // DEBUG_MODE is enabled (via clubAnketaSms.debug = true or window.CLUB_ANKETA_DEBUG = true).
+    // 
+    // To enable debugging, add this before the script loads:
+    //   window.CLUB_ANKETA_DEBUG = true;
+    // 
+    // Or in PHP when localizing the script:
+    //   'debug' => WP_DEBUG
     
     if (DEBUG_MODE) {
         window.clubAnketaSmsDebug = {
             /**
              * Test function to open modal directly from console
              * Usage: clubAnketaSmsDebug.openModal('555123456')
+             * This separates UI logic from event logic for debugging
              */
             openModal: function(phone) {
-                debugLog('DEBUG: openModal called with phone:', phone);
+                console.log('[Club Anketa SMS DEBUG] openModal called with phone:', phone);
                 
+                // Normalize phone using the same function as production code
                 var normalizedPhone = normalizePhone(phone);
                 
+                // Use the same validation as production code
                 if (!normalizedPhone || normalizedPhone.length !== 9) {
-                    console.warn('Anketa Debug: Invalid phone. Must be exactly 9 digits after normalization.');
-                    console.log('Anketa Debug: Usage: clubAnketaSmsDebug.openModal("555123456")');
-                    console.log('Anketa Debug: Received:', phone, '-> Normalized:', normalizedPhone);
+                    console.warn('[Club Anketa SMS DEBUG] Invalid phone. Must be exactly 9 digits after normalization.');
+                    console.log('[Club Anketa SMS DEBUG] Usage: clubAnketaSmsDebug.openModal("555123456")');
+                    console.log('[Club Anketa SMS DEBUG] Received:', phone, '-> Normalized:', normalizedPhone);
                     return false;
                 }
                 
+                // Ensure modal HTML exists
                 injectModalHtml();
+                
+                // Open the modal with normalized phone
                 openModal(normalizedPhone);
                 
-                debugLog('DEBUG: Modal should now be visible');
+                console.log('[Club Anketa SMS DEBUG] Modal should now be visible');
                 return true;
             },
             
@@ -1186,7 +1143,7 @@
              * Usage: clubAnketaSmsDebug.closeModal()
              */
             closeModal: function() {
-                debugLog('DEBUG: closeModal called');
+                console.log('[Club Anketa SMS DEBUG] closeModal called');
                 closeModal();
                 return true;
             },
@@ -1200,31 +1157,23 @@
                 var $billingPhone = $('#billing_phone');
                 var $verifyBtns = $('.phone-verify-btn');
                 
-                console.log('========== Anketa Debug: State Check ==========');
+                console.log('========== Club Anketa SMS State Check ==========');
                 console.log('DEBUG_MODE:', DEBUG_MODE);
-                console.log('');
-                console.log('--- MODAL ---');
                 console.log('Modal exists:', $modal.length > 0);
-                console.log('Modal parent tagName:', $modal.parent().length > 0 ? $modal.parent().get(0).tagName : 'N/A');
                 console.log('Modal parent is body:', $modal.parent().is('body'));
                 console.log('Modal has .active class:', $modal.hasClass('active'));
                 console.log('Modal computed display:', $modal.css('display'));
                 console.log('Modal computed visibility:', $modal.css('visibility'));
                 console.log('Modal computed z-index:', $modal.css('z-index'));
-                console.log('Modal computed position:', $modal.css('position'));
                 console.log('');
-                console.log('--- PHONE INPUT ---');
                 console.log('#billing_phone exists:', $billingPhone.length > 0);
                 console.log('#billing_phone value:', $billingPhone.val());
                 console.log('');
-                console.log('--- VERIFY BUTTONS ---');
                 console.log('Verify buttons found:', $verifyBtns.length);
                 $verifyBtns.each(function(i) {
                     console.log('  Button ' + i + ' visible:', $(this).is(':visible'));
-                    console.log('  Button ' + i + ' parent:', $(this).parent().attr('class'));
                 });
                 console.log('');
-                console.log('--- VERIFICATION STATE ---');
                 console.log('Session verified phone:', sessionVerifiedPhone);
                 console.log('Stored verified phone:', verifiedPhone);
                 console.log('=================================================');
@@ -1232,47 +1181,24 @@
                 return {
                     debugMode: DEBUG_MODE,
                     modalExists: $modal.length > 0,
-                    modalParentIsBody: $modal.parent().is('body'),
+                    modalInBody: $modal.parent().is('body'),
                     modalActive: $modal.hasClass('active'),
-                    modalDisplay: $modal.css('display'),
-                    modalVisibility: $modal.css('visibility'),
-                    modalZIndex: $modal.css('z-index'),
                     billingPhoneExists: $billingPhone.length > 0,
                     billingPhoneValue: $billingPhone.val(),
                     verifyButtonCount: $verifyBtns.length,
                     sessionVerifiedPhone: sessionVerifiedPhone,
                     storedVerifiedPhone: verifiedPhone
                 };
-            },
-            
-            /**
-             * Force modal jailbreak - manually move modal to body
-             * Usage: clubAnketaSmsDebug.forceJailbreak()
-             */
-            forceJailbreak: function() {
-                var $modal = $('#club-anketa-otp-modal');
-                if ($modal.length === 0) {
-                    console.log('Anketa Debug: Modal not found, injecting...');
-                    injectModalHtml();
-                    $modal = $('#club-anketa-otp-modal');
-                }
-                
-                console.log('Anketa Debug: Current parent:', $modal.parent().get(0));
-                $modal.detach().appendTo('body');
-                console.log('Anketa Debug: New parent:', $modal.parent().get(0));
-                console.log('Anketa Debug: Modal jailbreak complete');
-                return true;
             }
         };
         
-        // Short aliases for convenience during debugging
+        // Also expose as shorter aliases for convenience during debugging
         window.testOpenModal = window.clubAnketaSmsDebug.openModal;
         window.testCloseModal = window.clubAnketaSmsDebug.closeModal;
         window.testCheckState = window.clubAnketaSmsDebug.checkState;
-        window.testForceJailbreak = window.clubAnketaSmsDebug.forceJailbreak;
         
-        debugLog('Debug functions exposed: clubAnketaSmsDebug.openModal(), .closeModal(), .checkState(), .forceJailbreak()');
-        debugLog('Short aliases: testOpenModal(), testCloseModal(), testCheckState(), testForceJailbreak()');
+        debugLog('Debug functions exposed: clubAnketaSmsDebug.openModal(), .closeModal(), .checkState()');
+        debugLog('Short aliases also available: testOpenModal(), testCloseModal(), testCheckState()');
     }
 
 })(jQuery);
