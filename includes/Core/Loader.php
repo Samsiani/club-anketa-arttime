@@ -115,12 +115,16 @@ class Loader {
      */
     private function define_ajax_hooks() {
         $otp_handler = new \ClubAnketa\Frontend\OtpHandler();
+        $settings = new \ClubAnketa\Admin\Settings();
 
         // OTP AJAX handlers - both logged in and not logged in
         $this->add_action('wp_ajax_club_anketa_send_otp', $otp_handler, 'ajax_send_otp');
         $this->add_action('wp_ajax_nopriv_club_anketa_send_otp', $otp_handler, 'ajax_send_otp');
         $this->add_action('wp_ajax_club_anketa_verify_otp', $otp_handler, 'ajax_verify_otp');
         $this->add_action('wp_ajax_nopriv_club_anketa_verify_otp', $otp_handler, 'ajax_verify_otp');
+
+        // Test email AJAX handler - admin only
+        $this->add_action('wp_ajax_club_anketa_test_email', $settings, 'ajax_send_test_email');
     }
 
     /**

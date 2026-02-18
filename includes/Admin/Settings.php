@@ -60,6 +60,19 @@ class Settings {
             'default'           => '',
         ]);
 
+        // Email Notification Settings
+        register_setting('club_anketa_settings_group', 'club_anketa_enable_email_notification', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default'           => '',
+        ]);
+
+        register_setting('club_anketa_settings_group', 'club_anketa_notification_email', [
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_email',
+            'default'           => '',
+        ]);
+
         // SMS API Settings
         register_setting('club_anketa_settings_group', 'club_anketa_sms_username', [
             'type'              => 'string',
@@ -105,9 +118,20 @@ class Settings {
             'club_anketa_settings'
         );
 
+        // Email Notifications Section
+        add_settings_section(
+            'club_anketa_email_notifications',
+            __('Email Notifications', 'club-anketa'),
+            function () {
+                echo '<p>' . esc_html__('Configure email notifications for new registrations.', 'club-anketa') . '</p>';
+            },
+            'club_anketa_settings'
+        );
+
         // Add settings fields
         $this->add_sms_api_fields();
         $this->add_terms_fields();
+        $this->add_email_notification_fields();
         $this->add_shortcodes_section();
     }
 
@@ -258,6 +282,86 @@ class Settings {
             },
             'club_anketa_settings'
         );
+    }
+
+    /**
+     * Add email notification settings fields
+     */
+    private function add_email_notification_fields() {
+        add_settings_field(
+            'club_anketa_enable_email_notification',
+            __('Enable email notification', 'club-anketa'),
+            function () {
+                $val = get_option('club_anketa_enable_email_notification', '');
+                echo '<label><input type="checkbox" name="club_anketa_enable_email_notification" value="yes" ' . checked($val, 'yes', false) . ' /> '
+                    . esc_html__('Send an email when a new registration is submitted.', 'club-anketa') . '</label>';
+            },
+            'club_anketa_settings',
+            'club_anketa_email_notifications'
+        );
+
+        add_settings_field(
+            'club_anketa_notification_email',
+            __('Notification Email Address', 'club-anketa'),
+            function () {
+                $val = esc_attr(get_option('club_anketa_notification_email', ''));
+                $nonce = wp_create_nonce('club_anketa_test_email');
+                echo '<input type="email" id="club_anketa_notification_email" name="club_anketa_notification_email" value="' . $val . '" class="regular-text" placeholder="admin@example.com" /> ';
+                echo '<button type="button" class="button" id="club-anketa-send-test-email">' . esc_html__('Send Test Email', 'club-anketa') . '</button>';
+                echo '<script>
+                    document.getElementById("club-anketa-send-test-email").addEventListener("click", function() {
+                        var email = document.getElementById("club_anketa_notification_email").value;
+                        if (!email) {
+                            alert("' . esc_js(__('Please enter an email address.', 'club-anketa')) . '");
+                            return;
+                        }
+                        var xhr = new XMLHttpRequest();
+                        xhr.open("POST", "' . esc_url(admin_url('admin-ajax.php')) . '", true);
+                        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+                        xhr.onreadystatechange = function() {
+                            if (xhr.readyState === 4) {
+                                try {
+                                    var resp = JSON.parse(xhr.responseText);
+                                    alert(resp.data || "Unknown response.");
+                                } catch(e) {
+                                    alert("Error: Invalid server response.");
+                                }
+                            }
+                        };
+                        xhr.send("action=club_anketa_test_email&email=" + encodeURIComponent(email) + "&_ajax_nonce=' . esc_js($nonce) . '");
+                    });
+                </script>';
+            },
+            'club_anketa_settings',
+            'club_anketa_email_notifications'
+        );
+    }
+
+    /**
+     * AJAX handler to send a test email
+     */
+    public function ajax_send_test_email() {
+        check_ajax_referer('club_anketa_test_email');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(__('Permission denied.', 'club-anketa'));
+        }
+
+        $email = isset($_POST['email']) ? sanitize_email(wp_unslash($_POST['email'])) : '';
+
+        if (!is_email($email)) {
+            wp_send_json_error(__('Invalid email address.', 'club-anketa'));
+        }
+
+        $subject = __('Club Anketa - Test Email', 'club-anketa');
+        $body    = __('This is a test email to verify SMTP configuration.', 'club-anketa');
+        $sent    = wp_mail($email, $subject, $body);
+
+        if ($sent) {
+            wp_send_json_success(__('Test email sent successfully!', 'club-anketa'));
+        } else {
+            wp_send_json_error(__('Failed to send test email. Check your SMTP settings.', 'club-anketa'));
+        }
     }
 
     /**
