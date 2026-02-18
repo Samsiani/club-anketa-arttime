@@ -208,6 +208,22 @@ class Shortcode {
             delete_transient('otp_verified_' . $local_digits);
         }
 
+        // Send email notification if enabled
+        if (
+            get_option('club_anketa_enable_email_notification', '') === 'yes'
+            && is_email(get_option('club_anketa_notification_email', ''))
+        ) {
+            $notification_email = sanitize_email(get_option('club_anketa_notification_email', ''));
+            $subject = __('New Anketa Registration SMS Consent', 'club-anketa');
+            $body = sprintf(
+                'User %s %s, phone number: %s, now agrees to receive SMS. Context: Anketa',
+                $data['anketa_first_name'],
+                $data['anketa_last_name'],
+                $local_digits
+            );
+            wp_mail($notification_email, $subject, $body);
+        }
+
         // Redirect to print page
         $url = home_url('/print-anketa/?user_id=' . absint($user_id));
         wp_safe_redirect($url);
